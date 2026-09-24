@@ -1,0 +1,1998 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050814">
+<title>SDC vs SBK Daily Compare | รายงานเปรียบเทียบยอดประจำวัน</title>
+
+<!-- ============================================================
+     SDC vs SBK Daily Compare — v2
+     ไฟล์: SDC_SBK_Daily_Compare_v2.html  (คู่กับ Code_SDC_SBK_Daily_v2.gs)
+     v2 เปลี่ยนแปลง:
+       • เพิ่มโหมดสว่าง/มืด (จำค่าที่เลือกไว้ในเครื่อง)
+       • ใบรายงาน (PNG/พิมพ์) เปลี่ยนเป็นโทนสว่าง อ่านง่ายเมื่อส่ง LINE และพิมพ์
+       • ตัดช่อง "ผู้จัดทำ / ผู้ตรวจสอบ" ออกจากรายงาน
+       • บันทึกข้อมูลลง Google Sheets ผ่าน Apps Script (JSONP) + สำรองในเครื่อง
+     ============================================================ -->
+
+<script>
+  // ตั้งธีมก่อนหน้าเว็บวาด เพื่อไม่ให้จอกระพริบจากมืดเป็นสว่าง
+  try {
+    if (JSON.parse(localStorage.getItem('sdcsbk.theme.v1')) === 'light') {
+      document.documentElement.dataset.theme = 'light';
+    }
+  } catch (e) { /* localStorage ถูกปิด ใช้ธีมมืดเริ่มต้น */ }
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  /* ============================================================
+     1) Theme tokens
+     ทุกสีของ "หน้าแอป" อ้างอิงตัวแปรชุดนี้ สลับธีมแค่เปลี่ยน data-theme ที่ <html>
+     ส่วน "ใบรายงาน" (.rpt) ใช้โทนสว่างคงที่เสมอ ไม่ขึ้นกับธีมแอป
+     เพื่อให้ไฟล์ที่ส่งออกหน้าตาเหมือนกันไม่ว่าใครกดจากโหมดไหน
+     ============================================================ */
+  :root, [data-theme="dark"] {
+    --bg: #050814;
+    --heading: #FFFFFF;
+    --text: #E6EDFF;
+    --text-2: #C3CCE8;
+    --muted: #8A96B8;
+    --faint: #4A5578;
+    --line: rgba(148, 163, 255, .14);
+    --line-strong: rgba(148, 163, 255, .28);
+    --surface: rgba(5, 8, 20, .62);
+    --surface-hover: rgba(8, 12, 32, .92);
+    --glass-a: rgba(22, 32, 74, .58);
+    --glass-b: rgba(8, 12, 32, .62);
+    --glass-shadow: 0 14px 44px -14px rgba(0, 0, 0, .7);
+    --topbar: rgba(5, 8, 20, .75);
+    --grid-line: rgba(148, 163, 255, .05);
+    --toast-bg: rgba(10, 16, 40, .97);
+    --overlay: rgba(2, 4, 12, .72);
+    --ratio-shadow: 0 0 24px rgba(168, 85, 247, .55);
+    --glow-a: .7;
+    --cyan: #22D3EE;    --cyan-rgb: 34, 211, 238;
+    --purple: #A855F7;  --purple-rgb: 168, 85, 247;
+    --lime: #A3E635;    --lime-rgb: 163, 230, 53;
+    --rose: #FB7185;    --rose-rgb: 251, 113, 133;
+    --scheme: dark;
+    --bg-image:
+      radial-gradient(1100px 620px at 8% -12%, rgba(34, 211, 238, .13), transparent 60%),
+      radial-gradient(900px 620px at 108% 8%, rgba(168, 85, 247, .15), transparent 60%),
+      radial-gradient(800px 520px at 50% 118%, rgba(163, 230, 53, .07), transparent 60%);
+  }
+  [data-theme="light"] {
+    --bg: #EEF2FA;
+    --heading: #0B1220;
+    --text: #1E293B;
+    --text-2: #334155;
+    --muted: #64748B;
+    --faint: #94A3B8;
+    --line: rgba(15, 23, 42, .09);
+    --line-strong: rgba(15, 23, 42, .17);
+    --surface: #FFFFFF;
+    --surface-hover: #FFFFFF;
+    --glass-a: rgba(255, 255, 255, .9);
+    --glass-b: rgba(247, 250, 255, .8);
+    --glass-shadow: 0 10px 30px -14px rgba(15, 23, 42, .22);
+    --topbar: rgba(255, 255, 255, .82);
+    --grid-line: rgba(15, 23, 42, .045);
+    --toast-bg: #FFFFFF;
+    --overlay: rgba(15, 23, 42, .38);
+    --ratio-shadow: none;
+    --glow-a: .28;
+    /* สีเน้นในโหมดสว่างใช้เฉดเข้มขึ้น เพื่อคอนทราสต์ตัวอักษรบนพื้นขาวผ่านเกณฑ์อ่านง่าย */
+    --cyan: #0891B2;    --cyan-rgb: 8, 145, 178;
+    --purple: #7C3AED;  --purple-rgb: 124, 58, 237;
+    --lime: #4D7C0F;    --lime-rgb: 101, 163, 13;
+    --rose: #E11D48;    --rose-rgb: 225, 29, 72;
+    --scheme: light;
+    --bg-image:
+      radial-gradient(1100px 620px at 8% -12%, rgba(34, 211, 238, .16), transparent 60%),
+      radial-gradient(900px 620px at 108% 8%, rgba(168, 85, 247, .12), transparent 60%),
+      radial-gradient(800px 520px at 50% 118%, rgba(163, 230, 53, .10), transparent 60%);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; color-scheme: var(--scheme); }
+  html, body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'Sarabun', sans-serif;
+    line-height: 1.65; /* ≥1.6 กันสระบน-ล่างภาษาไทยถูกตัด */
+  }
+  body {
+    min-height: 100vh;
+    background-image: var(--bg-image);
+    background-attachment: fixed;
+    transition: background-color .35s ease, color .35s ease;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 25%, transparent 75%);
+            mask-image: radial-gradient(ellipse at 50% 0%, #000 25%, transparent 75%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .font-display { font-family: 'Prompt', sans-serif; }
+  .c-heading { color: var(--heading); }
+  .c-muted { color: var(--muted); }
+
+  /* แก้บั๊ก html2canvas: มันวัด baseline ตัวอักษรด้วย <img> ชั่วคราว แต่ Tailwind preflight ตั้ง img เป็น display:block
+     ทำให้ข้อความในรูปที่ส่งออกเลื่อนลงทับ bar/ตัวเลข — คืนค่า img เป็น inline (หน้านี้ไม่มีรูปภาพอื่น) */
+  html body img { display: inline; vertical-align: baseline; }
+
+  /* ============================================================
+     2) Glass card + Shimmer
+     ============================================================ */
+  .glass {
+    position: relative;
+    background: linear-gradient(160deg, var(--glass-a), var(--glass-b));
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+            backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, .05);
+    overflow: hidden;
+    transition: border-color .35s ease, box-shadow .35s ease, background .35s ease;
+  }
+  .glass::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .07) 44%, rgba(var(--cyan-rgb), .09) 50%, transparent 64%);
+    transform: translateX(-120%);
+    pointer-events: none;
+  }
+  .glass:hover {
+    border-color: rgba(var(--cyan-rgb), .36);
+    box-shadow: var(--glass-shadow), 0 0 30px -8px rgba(var(--cyan-rgb), calc(var(--glow-a) * .55)), inset 0 1px 0 rgba(255, 255, 255, .07);
+  }
+  .glass:hover::after { animation: shimmer 1.25s ease; }
+  @keyframes shimmer { to { transform: translateX(120%); } }
+
+  .card-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px 0; }
+  .card-icon {
+    --ic: var(--cyan-rgb);
+    width: 40px; height: 40px; flex: none;
+    display: grid; place-items: center;
+    border-radius: 13px;
+    color: rgb(var(--ic));
+    background: rgba(var(--ic), .1);
+    border: 1px solid rgba(var(--ic), .38);
+    box-shadow: 0 0 18px -6px rgba(var(--ic), var(--glow-a));
+  }
+  .card-icon.ic-lime { --ic: var(--lime-rgb); }
+  .card-icon.ic-purple { --ic: var(--purple-rgb); }
+  .card-icon.ic-line { --ic: 6, 199, 85; }
+  .card-icon.sm { width: 34px; height: 34px; border-radius: 11px; }
+  .card-title { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1.08rem; color: var(--heading); line-height: 1.35; }
+  .card-sub { font-size: .86rem; color: var(--muted); line-height: 1.4; }
+
+  /* ============================================================
+     3) Top bar
+     ============================================================ */
+  .topbar {
+    background: var(--topbar);
+    -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+    padding-top: env(safe-area-inset-top, 0px);
+    transition: background .35s ease;
+  }
+  .brand-mark {
+    width: 44px; height: 44px; flex: none;
+    display: grid; place-items: center;
+    border-radius: 14px;
+    font-size: 1.2rem; color: var(--cyan);
+    background: linear-gradient(145deg, rgba(var(--cyan-rgb), .18), rgba(var(--purple-rgb), .2));
+    border: 1px solid rgba(var(--cyan-rgb), .45);
+    box-shadow: 0 0 22px -4px rgba(var(--cyan-rgb), var(--glow-a));
+  }
+  .brand-title {
+    font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 1.1rem; line-height: 1.3;
+    background: linear-gradient(90deg, #fff, #BDEFFF 45%, #E2C8FF);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  [data-theme="light"] .brand-title { background-image: linear-gradient(90deg, #0B1220, #0E7490 55%, #6D28D9); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: 'Prompt', sans-serif; font-size: .8rem; font-weight: 500; line-height: 1.3;
+    padding: 7px 12px; border-radius: 999px;
+    color: var(--text-2); border: 1px solid var(--line-strong); background: var(--surface);
+    white-space: nowrap;
+  }
+  button.chip { cursor: pointer; transition: border-color .2s, color .2s; }
+  button.chip:hover { color: var(--heading); border-color: rgba(var(--cyan-rgb), .55); }
+  button.chip:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--muted); }
+  .chip.is-online .dot { background: var(--lime); box-shadow: 0 0 10px rgba(var(--lime-rgb), .9); }
+  .chip.is-local .dot { background: #F59E0B; box-shadow: 0 0 10px rgba(245, 158, 11, .7); }
+
+  .icon-btn {
+    width: 38px; height: 38px; flex: none;
+    display: grid; place-items: center;
+    border-radius: 12px;
+    color: var(--text-2); background: var(--surface);
+    border: 1px solid var(--line-strong);
+    cursor: pointer; transition: all .2s ease;
+  }
+  .icon-btn:hover { color: var(--heading); border-color: rgba(var(--cyan-rgb), .55); box-shadow: 0 0 16px -6px rgba(var(--cyan-rgb), var(--glow-a)); }
+  .icon-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  /* ============================================================
+     4) Form fields
+     ============================================================ */
+  .group-title {
+    display: flex; align-items: center; gap: 8px;
+    font-family: 'Prompt', sans-serif; font-weight: 600; font-size: .95rem; color: var(--heading);
+    margin-bottom: 10px;
+  }
+  .group-title i { color: var(--lime); font-size: .9rem; }
+  .group-title .hint { margin-left: auto; font-family: 'Sarabun', sans-serif; font-weight: 400; font-size: .8rem; color: var(--muted); }
+
+  .field { display: block; --acc: var(--cyan-rgb); }
+  .field[data-tone="sdc"] { --acc: var(--purple-rgb); }
+  .field[data-tone="extra"] { --acc: var(--lime-rgb); }
+  .field-label { display: flex; align-items: center; gap: 8px; font-size: .86rem; color: var(--text-2); margin-bottom: 6px; line-height: 1.4; }
+  .site-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: rgb(var(--acc)); box-shadow: 0 0 10px rgba(var(--acc), var(--glow-a)); }
+  .field-box { position: relative; }
+  .field-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: rgb(var(--acc)); opacity: .9; font-size: .95rem; pointer-events: none; }
+  .field-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    padding: 11px 52px 11px 42px;
+    font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1.15rem;
+    color: var(--heading); line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    transition: border-color .2s, box-shadow .2s, background .2s;
+  }
+  .field-input.plain { font-family: 'Sarabun', sans-serif; font-weight: 500; font-size: .95rem; padding-right: 14px; }
+  .field-input::placeholder { color: var(--faint); font-weight: 500; }
+  .field-input:hover { border-color: rgba(var(--acc), .5); }
+  .field-input:focus {
+    outline: none;
+    border-color: rgb(var(--acc));
+    background: var(--surface-hover);
+    box-shadow: 0 0 0 3px rgba(var(--acc), .18), 0 0 22px -6px rgba(var(--acc), var(--glow-a));
+  }
+  .field-unit { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: .85rem; color: var(--muted); pointer-events: none; }
+  .field-error { display: none; font-size: .8rem; color: var(--rose); margin-top: 5px; line-height: 1.4; }
+  .field.is-invalid .field-input { border-color: var(--rose); box-shadow: 0 0 0 3px rgba(var(--rose-rgb), .15); }
+  .field.is-invalid .field-error { display: block; }
+
+  .date-input { padding-right: 14px; }
+  [data-theme="dark"] .date-input::-webkit-calendar-picker-indicator { filter: invert(.8) sepia(1) hue-rotate(150deg) saturate(4); }
+  .date-input::-webkit-calendar-picker-indicator { cursor: pointer; }
+  .date-meta { font-size: .86rem; color: var(--text-2); margin-top: 6px; line-height: 1.5; }
+  .date-meta strong { color: var(--day, var(--cyan)); font-weight: 600; }
+
+  /* ปุ่มวันในสัปดาห์: สีประจำวันแบบไทย (โหมดสว่างใช้เฉดเข้มกว่าเพื่อให้อ่านออก) */
+  .dow-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .dow-btn {
+    --day: #22D3EE;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 7px 2px; border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    color: var(--text-2); cursor: pointer;
+    transition: all .2s ease;
+    line-height: 1.25;
+  }
+  .dow-btn .th { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: .9rem; }
+  .dow-btn .en { font-size: .68rem; opacity: .7; }
+  .dow-btn:hover { border-color: var(--day); color: var(--heading); }
+  .dow-btn:focus-visible { outline: 2px solid var(--day); outline-offset: 2px; }
+  .dow-btn[aria-checked="true"] {
+    color: var(--heading);
+    border-color: var(--day);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--day) 26%, transparent), color-mix(in srgb, var(--day) 8%, transparent));
+    box-shadow: 0 0 18px -5px var(--day), inset 0 0 12px -6px var(--day);
+  }
+
+  /* ============================================================
+     5) Buttons
+     ============================================================ */
+  .btn {
+    position: relative;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 11px 16px; border-radius: 14px;
+    font-family: 'Prompt', sans-serif; font-weight: 600; font-size: .92rem; line-height: 1.3;
+    border: 1px solid transparent; cursor: pointer;
+    transition: transform .15s ease, box-shadow .25s ease, filter .2s ease, background .2s ease, border-color .2s, color .2s;
+    white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active:not(:disabled) { transform: translateY(1px) scale(.99); }
+  .btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .btn:disabled { cursor: not-allowed; opacity: .7; }
+  .btn-primary { color: #041018; background: linear-gradient(100deg, #22D3EE, #8B5CF6); box-shadow: 0 8px 26px -10px rgba(34, 211, 238, .8); }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 10px 30px -8px rgba(139, 92, 246, .85); }
+  .btn-line { color: #fff; background: linear-gradient(100deg, #06C755, #04A847); box-shadow: 0 8px 26px -10px rgba(6, 199, 85, .85); }
+  .btn-line:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-lime { color: #0B1400; background: linear-gradient(100deg, #A3E635, #65D46E); box-shadow: 0 8px 26px -10px rgba(163, 230, 53, .8); }
+  .btn-lime:hover:not(:disabled) { filter: brightness(1.06); }
+  .btn-ghost { color: var(--text-2); background: var(--surface); border-color: var(--line-strong); }
+  .btn-ghost:hover:not(:disabled) { color: var(--heading); border-color: rgba(var(--cyan-rgb), .55); }
+  .btn-danger-ghost { color: var(--rose); background: rgba(var(--rose-rgb), .07); border-color: rgba(var(--rose-rgb), .32); }
+  .btn-danger-ghost:hover:not(:disabled) { border-color: var(--rose); background: rgba(var(--rose-rgb), .12); }
+  .btn-sm { padding: 7px 11px; font-size: .8rem; border-radius: 10px; }
+
+  .btn-spinner {
+    display: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid currentColor; border-right-color: transparent;
+    animation: spin .7s linear infinite;
+  }
+  .btn.is-loading .btn-spinner { display: inline-block; }
+  .btn.is-loading .btn-icon { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ============================================================
+     6) Live calculation cards
+     ============================================================ */
+  .calc-card { padding: 18px 20px 20px; }
+  .calc-head { display: flex; align-items: center; gap: 10px; }
+  .calc-title { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1rem; color: var(--heading); }
+  .trend-chip {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: .76rem; font-weight: 600; line-height: 1.3;
+    padding: 4px 10px; border-radius: 999px;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+  }
+  .t-up { color: var(--lime); }
+  .t-down { color: var(--rose); }
+  .t-flat, .t-none { color: var(--muted); }
+  .calc-ratio { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; }
+  .calc-ratio-num {
+    font-family: 'Prompt', sans-serif; font-weight: 700;
+    font-size: clamp(2.3rem, 5vw, 2.9rem); line-height: 1.1; color: var(--heading);
+    text-shadow: var(--ratio-shadow);
+    font-variant-numeric: tabular-nums;
+  }
+  .calc-ratio-unit { font-size: .95rem; color: var(--text-2); }
+  .calc-ratio-label { font-size: .8rem; color: var(--muted); }
+  .calc-formula { margin-top: 4px; font-size: .84rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .calc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .calc-stat { padding: 9px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+  .calc-stat span { display: block; font-size: .74rem; color: var(--muted); line-height: 1.35; }
+  .calc-stat strong { display: block; font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 1.08rem; line-height: 1.4; font-variant-numeric: tabular-nums; }
+  .calc-bars { margin-top: 14px; display: grid; gap: 8px; }
+  .calc-bar-row { display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 10px; font-size: .8rem; }
+  .calc-bar-row .tag { font-family: 'Prompt', sans-serif; font-weight: 700; }
+  .calc-bar-row .val { font-variant-numeric: tabular-nums; color: var(--text); }
+  .calc-track { height: 8px; border-radius: 8px; background: rgba(var(--cyan-rgb), .1); overflow: hidden; }
+  .calc-fill { height: 100%; border-radius: 8px; transition: width .45s cubic-bezier(.2, .8, .2, 1); }
+  .fill-sbk { background: linear-gradient(90deg, #0E7490, #22D3EE); box-shadow: 0 0 12px rgba(34, 211, 238, calc(var(--glow-a) * .8)); }
+  .fill-sdc { background: linear-gradient(90deg, #6D28D9, #A855F7); box-shadow: 0 0 12px rgba(168, 85, 247, calc(var(--glow-a) * .8)); }
+
+  /* ============================================================
+     7) Report card — โทนสว่างคงที่ (ใช้ทั้ง preview / PNG / พิมพ์)
+     ขนาด 794×1123px = A4 แนวตั้ง @96dpi
+     ห้ามใช้ backdrop-filter / background-clip:text ในส่วนนี้ เพราะ html2canvas วาดไม่ได้
+     ============================================================ */
+  .rpt-viewport { position: relative; width: 100%; border-radius: 16px; overflow: hidden; border: 1px solid var(--line-strong); background: #FFFFFF; }
+  .rpt-scaler { position: absolute; top: 0; left: 0; transform-origin: top left; }
+
+  .rpt {
+    position: relative;
+    width: 794px; height: 1123px;
+    padding: 40px 46px 34px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    background: linear-gradient(165deg, #FFFFFF 0%, #F6F9FF 50%, #EFF4FF 100%);
+    color: #0F172A;
+    font-family: 'Sarabun', sans-serif;
+    line-height: 1.5;
+  }
+  .rpt-orb { position: absolute; border-radius: 50%; pointer-events: none; }
+  .rpt-orb-a { width: 540px; height: 540px; left: -230px; top: -250px; background: radial-gradient(circle, rgba(34, 211, 238, .22) 0%, rgba(34, 211, 238, 0) 65%); }
+  .rpt-orb-b { width: 580px; height: 580px; right: -260px; top: 300px; background: radial-gradient(circle, rgba(168, 85, 247, .14) 0%, rgba(168, 85, 247, 0) 65%); }
+  .rpt-orb-c { width: 480px; height: 480px; left: -180px; bottom: -260px; background: radial-gradient(circle, rgba(163, 230, 53, .2) 0%, rgba(163, 230, 53, 0) 65%); }
+  .rpt-inner { position: relative; z-index: 1; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+  .rpt-head { display: flex; justify-content: space-between; align-items: center; gap: 22px; }
+  .rpt-brand { display: flex; align-items: center; gap: 16px; }
+  .rpt-mark {
+    width: 62px; height: 62px; flex: none; border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; color: #FFFFFF;
+    background: linear-gradient(145deg, #06B6D4, #8B5CF6);
+    box-shadow: 0 10px 24px -8px rgba(99, 102, 241, .55);
+  }
+  .rpt-kicker { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: .06em; color: #0891B2; }
+  .rpt-title { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 32px; line-height: 1.3; color: #0B1220; margin: 0; }
+  .rpt-sub { font-size: 14.5px; color: #475569; line-height: 1.45; }
+  .rpt-date {
+    flex: none; min-width: 148px; text-align: center;
+    padding: 10px 16px 12px; border-radius: 18px;
+    border: 2px solid var(--day);
+    background: #FFFFFF;
+    box-shadow: 0 10px 26px -12px var(--day);
+  }
+  .rpt-date-day { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 15px; color: var(--day); line-height: 1.4; }
+  .rpt-date-num { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 40px; line-height: 1.1; color: #0B1220; }
+  .rpt-date-my { font-size: 14px; color: #475569; line-height: 1.4; }
+
+  .rpt-rule { height: 4px; border-radius: 4px; margin: 20px 0 18px; background: linear-gradient(90deg, #22D3EE, #A855F7 55%, #A3E635); }
+
+  .rpt-body { display: flex; flex-direction: column; justify-content: space-between; gap: 14px; flex: 1; }
+  .rpt-sec {
+    border-radius: 20px; padding: 16px 18px;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 10px 28px -18px rgba(15, 23, 42, .35);
+  }
+  .rpt-sec-head { display: flex; align-items: center; gap: 11px; margin-bottom: 12px; }
+  .rpt-sec-icon {
+    width: 34px; height: 34px; border-radius: 11px; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: #4D7C0F;
+    background: #ECFCCB;
+    border: 1px solid #BEF264;
+  }
+  .rpt-sec-title { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 19px; color: #0B1220; margin: 0; line-height: 1.35; }
+  .rpt-sec-unit { margin-left: auto; font-size: 13px; color: #64748B; }
+
+  .rpt-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rpt-site { border-radius: 16px; padding: 12px 16px 14px; border: 1.5px solid; }
+  .rpt-site.is-sbk { border-color: #A5F3FC; background: linear-gradient(160deg, #ECFEFF, #FFFFFF 70%); }
+  .rpt-site.is-sdc { border-color: #DDD6FE; background: linear-gradient(160deg, #F5F3FF, #FFFFFF 70%); }
+  .rpt-site-top { display: flex; align-items: center; gap: 10px; }
+  .rpt-site-tag { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 13px; line-height: 1.5; padding: 1px 11px; border-radius: 999px; color: #FFFFFF; }
+  .is-sbk .rpt-site-tag { background: #0891B2; }
+  .is-sdc .rpt-site-tag { background: #7C3AED; }
+  .rpt-site-name { font-size: 13.5px; color: #475569; }
+  .rpt-site-val { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 38px; line-height: 1.2; color: #0B1220; margin-top: 4px; }
+  .rpt-site-val small { font-family: 'Sarabun', sans-serif; font-weight: 500; font-size: 15px; color: #64748B; margin-left: 6px; }
+  .rpt-bar { height: 8px; border-radius: 8px; background: #E2E8F0; margin-top: 8px; overflow: hidden; }
+  .rpt-bar span { display: block; height: 100%; border-radius: 8px; }
+  .is-sbk .rpt-bar span { background: linear-gradient(90deg, #06B6D4, #22D3EE); }
+  .is-sdc .rpt-bar span { background: linear-gradient(90deg, #7C3AED, #A855F7); }
+
+  .rpt-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .rpt-metric { border-radius: 14px; padding: 8px 14px 9px; background: #F8FAFC; border: 1px solid #E2E8F0; }
+  .rpt-metric-label { font-size: 12.5px; color: #64748B; line-height: 1.45; }
+  .rpt-metric-val { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 23px; line-height: 1.3; color: #0B1220; }
+  .rpt-metric-val small { font-family: 'Sarabun', sans-serif; font-weight: 500; font-size: 13px; color: #64748B; margin-left: 4px; }
+  .rpt-metric-note { font-size: 12px; color: #94A3B8; line-height: 1.45; }
+  .rpt .t-up { color: #4D7C0F; }
+  .rpt .t-down { color: #E11D48; }
+  .rpt .t-flat, .rpt .t-none { color: #475569; }
+
+  .rpt-transit { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rpt-tr { display: flex; align-items: center; gap: 14px; border-radius: 16px; padding: 10px 16px; background: linear-gradient(160deg, #F7FEE7, #FFFFFF 70%); border: 1.5px solid #D9F99D; }
+  .rpt-tr-icon { width: 44px; height: 44px; border-radius: 14px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 19px; color: #FFFFFF; background: linear-gradient(145deg, #84CC16, #4D7C0F); }
+  .rpt-tr-label { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 14px; color: #475569; line-height: 1.35; }
+  .rpt-tr-val { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 28px; line-height: 1.25; color: #0B1220; }
+  .rpt-tr-val small { font-family: 'Sarabun', sans-serif; font-weight: 500; font-size: 14px; color: #64748B; margin-left: 5px; }
+
+  .rpt-foot {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 20px;
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid #E2E8F0;
+    font-size: 12.5px; color: #64748B; line-height: 1.5;
+  }
+  .rpt-foot-brand { display: flex; align-items: center; gap: 8px; font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 13px; color: #0891B2; }
+
+  /* Stage นอกจอสำหรับ export ขนาดจริง 1:1 (ห้าม display:none เพราะ html2canvas ต้องวัด layout ได้) */
+  #exportStage { position: fixed; left: -12000px; top: 0; width: 794px; height: 1123px; pointer-events: none; }
+
+  /* ============================================================
+     8) LINE preview, history, toast, modal, mobile bar
+     ============================================================ */
+  .line-preview {
+    margin: 0; white-space: pre-wrap; word-break: break-word;
+    font-family: 'Sarabun', sans-serif; font-size: .9rem; line-height: 1.7; color: var(--text);
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; padding: 14px 16px;
+    max-height: 340px; overflow: auto;
+  }
+  .history-list { max-height: 380px; overflow: auto; }
+  .history-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 11px 12px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--line);
+    transition: border-color .2s;
+  }
+  .history-item:hover { border-color: rgba(var(--cyan-rgb), .4); }
+  .history-item.is-current { border-color: rgba(var(--lime-rgb), .6); }
+  .history-day { width: 46px; flex: none; text-align: center; border-radius: 11px; padding: 4px 0; border: 1.5px solid var(--day); color: var(--heading); line-height: 1.2; }
+  .history-day b { display: block; font-family: 'Prompt', sans-serif; font-size: 1.05rem; }
+  .history-day span { font-size: .68rem; color: var(--day); }
+  .empty-state { text-align: center; padding: 26px 16px; color: var(--muted); font-size: .88rem; line-height: 1.6; }
+  .empty-state i { font-size: 1.8rem; color: var(--faint); margin-bottom: 8px; display: block; }
+  .empty-state .btn-spinner { display: inline-block; width: 22px; height: 22px; color: var(--cyan); margin-bottom: 8px; }
+
+  #toastStack {
+    position: fixed; z-index: 95; right: 16px; bottom: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    width: min(380px, calc(100vw - 32px));
+    pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px; border-radius: 14px;
+    background: var(--toast-bg); color: var(--text);
+    border: 1px solid var(--line-strong);
+    box-shadow: 0 16px 40px -12px rgba(0, 0, 0, .45);
+    transform: translateY(14px); opacity: 0;
+    transition: transform .3s cubic-bezier(.2, .8, .2, 1), opacity .3s ease;
+  }
+  .toast.show { transform: none; opacity: 1; }
+  .toast > i { font-size: 1.15rem; margin-top: 2px; }
+  .toast-success { border-color: rgba(var(--lime-rgb), .6); }
+  .toast-success > i { color: var(--lime); }
+  .toast-error { border-color: rgba(var(--rose-rgb), .6); }
+  .toast-error > i { color: var(--rose); }
+  .toast-info > i { color: var(--cyan); }
+  .toast-title { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: .92rem; line-height: 1.45; color: var(--heading); }
+  .toast-detail { font-size: .82rem; color: var(--text-2); line-height: 1.5; }
+  .toast-close { margin-left: auto; color: var(--muted); font-size: 1.1rem; line-height: 1; padding: 2px 4px; background: none; border: 0; cursor: pointer; }
+  .toast-close:hover { color: var(--heading); }
+
+  .overlay { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; padding: 20px; background: var(--overlay); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .overlay.open { display: flex; }
+  .modal-box { width: min(420px, 100%); padding: 22px; max-height: calc(100vh - 40px); overflow: auto; }
+  .modal-box.wide { width: min(560px, 100%); }
+  .modal-box h3 { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1.1rem; color: var(--heading); line-height: 1.4; }
+  .modal-box p { color: var(--text-2); font-size: .9rem; margin-top: 4px; }
+  .settings-status { margin-top: 12px; padding: 10px 12px; border-radius: 12px; font-size: .85rem; line-height: 1.5; display: none; border: 1px solid var(--line-strong); background: var(--surface); }
+  .settings-status.show { display: flex; gap: 10px; align-items: flex-start; }
+  .settings-status.ok { border-color: rgba(var(--lime-rgb), .55); }
+  .settings-status.ok i { color: var(--lime); }
+  .settings-status.err { border-color: rgba(var(--rose-rgb), .55); }
+  .settings-status.err i { color: var(--rose); }
+  .settings-status i { margin-top: 3px; }
+  .steps { margin-top: 14px; padding: 12px 14px 12px 34px; border-radius: 12px; background: var(--surface); border: 1px dashed var(--line-strong); font-size: .84rem; color: var(--text-2); line-height: 1.7; list-style: decimal; }
+  .steps b { color: var(--heading); font-weight: 600; }
+  .steps code { font-size: .8rem; padding: 1px 6px; border-radius: 6px; background: rgba(var(--cyan-rgb), .12); color: var(--cyan); }
+
+  .mobile-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    background: var(--topbar);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line);
+  }
+
+  @media (max-width: 639px) {
+    #toastStack { left: 16px; right: 16px; width: auto; top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; }
+    .toast { transform: translateY(-14px); }
+    .dow-btn .en { display: none; }
+    .field-input { font-size: 1.05rem; }
+    .chip .chip-text { display: none; }
+    .chip { padding: 7px 9px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+
+  /* ============================================================
+     9) Print A4 — พิมพ์เฉพาะใบรายงาน (สั่ง "บันทึกเป็น PDF" ได้)
+     ============================================================ */
+  @page { size: A4 portrait; margin: 0; }
+  @media print {
+    html, body { background: #FFFFFF !important; }
+    body::before { display: none; }
+    .app-shell, #toastStack, .overlay, .mobile-bar { display: none !important; }
+    #exportStage { position: static; left: auto; width: 210mm; height: auto; }
+    #exportStage .rpt { height: 1120px; } /* 297mm ≈ 1122.5px เผื่อปัดเศษ กันล้นไปหน้า 2 */
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
+</style>
+</head>
+
+<body>
+<div class="app-shell relative z-10">
+
+  <!-- ===================== Top bar ===================== -->
+  <header class="topbar sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
+      <div class="brand-mark"><i class="fa-solid fa-chart-column"></i></div>
+      <div class="min-w-0">
+        <h1 class="brand-title truncate">SDC vs SBK Daily Compare</h1>
+        <p class="text-xs sm:text-sm truncate c-muted">รายงานเปรียบเทียบยอดประจำวัน ซีคอนศรีนครินทร์ และ ซีคอนบางแค</p>
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <span class="chip hidden md:inline-flex" id="clockChip"><i class="fa-regular fa-clock"></i><span id="clock">—</span></span>
+        <button type="button" class="chip" id="syncChip" data-action="settings" title="ตั้งค่าการบันทึกข้อมูล">
+          <span class="dot"></span><span class="chip-text" id="syncText">บันทึกในเครื่อง</span><i class="fa-solid fa-gear"></i>
+        </button>
+        <button type="button" class="icon-btn" id="themeBtn" data-action="theme" aria-label="สลับโหมดสว่าง/มืด" title="สลับโหมดสว่าง/มืด">
+          <i class="fa-solid fa-sun" id="themeIcon"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-32 lg:pb-12 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- ===================== LEFT: ฟอร์ม + ประวัติ ===================== -->
+    <section class="lg:col-span-5 space-y-6">
+
+      <div class="glass" id="formCard">
+        <div class="card-head">
+          <div class="card-icon"><i class="fa-solid fa-pen-to-square"></i></div>
+          <div>
+            <h2 class="card-title">บันทึกยอดประจำวัน</h2>
+            <p class="card-sub">ตัวเลขและรายงานจะคำนวณใหม่ทันทีที่พิมพ์</p>
+          </div>
+        </div>
+
+        <div class="p-5 space-y-6">
+          <div>
+            <div class="group-title"><i class="fa-solid fa-calendar-day"></i>วันที่รายงาน</div>
+            <label class="field" data-field="date">
+              <div class="field-box">
+                <i class="fa-regular fa-calendar field-icon"></i>
+                <input class="field-input date-input" id="reportDate" name="date" type="date" required aria-describedby="err-date">
+              </div>
+              <span class="field-error" id="err-date">กรุณาเลือกวันที่รายงาน</span>
+            </label>
+            <p class="date-meta" id="dateMeta">—</p>
+            <div class="dow-grid mt-3" id="dowGroup" role="radiogroup" aria-label="เลือกวันในสัปดาห์"></div>
+          </div>
+
+          <div>
+            <div class="group-title"><i class="fa-solid fa-people-group"></i>ยอดผู้ใช้บริการ<span class="hint">หน่วย: คน</span></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="field" data-tone="sbk" data-field="sbkPeople">
+                <span class="field-label"><span class="site-dot"></span>SBK (ซีคอนบางแค)</span>
+                <div class="field-box">
+                  <i class="fa-solid fa-person-walking field-icon"></i>
+                  <input class="field-input" id="sbkPeople" name="sbkPeople" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="err-sbkPeople">
+                  <span class="field-unit">คน</span>
+                </div>
+                <span class="field-error" id="err-sbkPeople">กรุณากรอกยอดคน SBK</span>
+              </label>
+              <label class="field" data-tone="sdc" data-field="sdcPeople">
+                <span class="field-label"><span class="site-dot"></span>SDC (ซีคอนศรีนครินทร์)</span>
+                <div class="field-box">
+                  <i class="fa-solid fa-person-walking field-icon"></i>
+                  <input class="field-input" id="sdcPeople" name="sdcPeople" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="err-sdcPeople">
+                  <span class="field-unit">คน</span>
+                </div>
+                <span class="field-error" id="err-sdcPeople">กรุณากรอกยอดคน SDC</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="group-title"><i class="fa-solid fa-car-side"></i>ยอดรถยนต์<span class="hint">หน่วย: คัน</span></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="field" data-tone="sbk" data-field="sbkCars">
+                <span class="field-label"><span class="site-dot"></span>SBK (ซีคอนบางแค)</span>
+                <div class="field-box">
+                  <i class="fa-solid fa-car field-icon"></i>
+                  <input class="field-input" id="sbkCars" name="sbkCars" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="err-sbkCars">
+                  <span class="field-unit">คัน</span>
+                </div>
+                <span class="field-error" id="err-sbkCars">กรุณากรอกยอดรถ SBK</span>
+              </label>
+              <label class="field" data-tone="sdc" data-field="sdcCars">
+                <span class="field-label"><span class="site-dot"></span>SDC (ซีคอนศรีนครินทร์)</span>
+                <div class="field-box">
+                  <i class="fa-solid fa-car field-icon"></i>
+                  <input class="field-input" id="sdcCars" name="sdcCars" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="err-sdcCars">
+                  <span class="field-unit">คัน</span>
+                </div>
+                <span class="field-error" id="err-sdcCars">กรุณากรอกยอดรถ SDC</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="group-title"><i class="fa-solid fa-train-subway"></i>ข้อมูลการเดินทางร่วม<span class="hint">หน่วย: คน</span></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label class="field" data-tone="extra" data-field="mrt">
+                <span class="field-label"><span class="site-dot"></span>MRT</span>
+                <div class="field-box">
+                  <i class="fa-solid fa-train-subway field-icon"></i>
+                  <input class="field-input" id="mrt" name="mrt" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="err-mrt">
+                  <span class="field-unit">คน</span>
+                </div>
+                <span class="field-error" id="err-mrt">กรุณากรอกยอด MRT</span>
+              </label>
+              <label class="field" data-tone="extra" data-field="ebm">
+                <span class="field-label"><span class="site-dot"></span>EBM</span>
+                <div class="field-box">
+                  <i class="fa-solid fa-bus field-icon"></i>
+                  <input class="field-input" id="ebm" name="ebm" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-describedby="err-ebm">
+                  <span class="field-unit">คน</span>
+                </div>
+                <span class="field-error" id="err-ebm">กรุณากรอกยอด EBM</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+            <button type="button" class="btn btn-lime sm:col-span-3" data-action="save">
+              <span class="btn-spinner"></span><i class="fa-solid fa-floppy-disk btn-icon"></i><span id="saveLabel">บันทึกข้อมูล</span>
+            </button>
+            <button type="button" class="btn btn-ghost sm:col-span-2" data-action="sample">
+              <i class="fa-solid fa-rotate-left btn-icon"></i><span>ใช้ข้อมูลตัวอย่าง</span>
+            </button>
+            <button type="button" class="btn btn-danger-ghost" data-action="clear">
+              <i class="fa-solid fa-eraser btn-icon"></i><span>ล้างข้อมูล</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass">
+        <div class="card-head">
+          <div class="card-icon ic-lime"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          <div class="min-w-0">
+            <h2 class="card-title">ประวัติที่บันทึกไว้</h2>
+            <p class="card-sub" id="historySource">เก็บไว้ในเบราว์เซอร์เครื่องนี้</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm ml-auto" data-action="refresh" title="โหลดประวัติใหม่" aria-label="โหลดประวัติใหม่">
+            <span class="btn-spinner"></span><i class="fa-solid fa-rotate btn-icon"></i>
+          </button>
+        </div>
+        <div class="p-4">
+          <div class="text-xs c-muted mb-2 px-1" id="historyCount"></div>
+          <div class="history-list space-y-2" id="historyList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== RIGHT: ผลคำนวณ + รายงาน ===================== -->
+    <section class="lg:col-span-7 space-y-6">
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="glass calc-card" id="calcPeople" aria-live="polite"></div>
+        <div class="glass calc-card" id="calcCars" aria-live="polite"></div>
+      </div>
+
+      <div class="glass">
+        <div class="card-head">
+          <div class="card-icon ic-purple"><i class="fa-solid fa-file-image"></i></div>
+          <div>
+            <h2 class="card-title">ใบรายงานสำหรับผู้บริหาร</h2>
+            <p class="card-sub">ขนาด A4 แนวตั้ง ภาพตัวอย่างนี้ตรงกับไฟล์ที่ส่งออก</p>
+          </div>
+        </div>
+        <div class="p-4 sm:p-5 space-y-4">
+          <div class="hidden lg:grid grid-cols-3 gap-2">
+            <button type="button" class="btn btn-line" data-action="line">
+              <span class="btn-spinner"></span><i class="fa-brands fa-line btn-icon"></i><span>คัดลอกข้อความ LINE</span>
+            </button>
+            <button type="button" class="btn btn-primary" data-action="png">
+              <span class="btn-spinner"></span><i class="fa-solid fa-image btn-icon"></i><span>ดาวน์โหลด PNG</span>
+            </button>
+            <button type="button" class="btn btn-ghost" data-action="print">
+              <span class="btn-spinner"></span><i class="fa-solid fa-print btn-icon"></i><span>พิมพ์ / PDF (A4)</span>
+            </button>
+          </div>
+          <div class="rpt-viewport" id="rptViewport">
+            <div class="rpt-scaler" id="rptScaler"></div>
+          </div>
+          <div class="lg:hidden">
+            <button type="button" class="btn btn-ghost w-full" data-action="print">
+              <span class="btn-spinner"></span><i class="fa-solid fa-print btn-icon"></i><span>พิมพ์ / บันทึกเป็น PDF (A4)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass">
+        <div class="card-head">
+          <div class="card-icon ic-line"><i class="fa-brands fa-line"></i></div>
+          <div>
+            <h2 class="card-title">ข้อความสำหรับ LINE</h2>
+            <p class="card-sub">กดคัดลอกแล้ววางในแชตกลุ่มได้ทันที</p>
+          </div>
+          <button type="button" class="btn btn-line btn-sm ml-auto" data-action="line">
+            <span class="btn-spinner"></span><i class="fa-regular fa-copy btn-icon"></i><span>คัดลอก</span>
+          </button>
+        </div>
+        <div class="p-4 sm:p-5">
+          <pre class="line-preview" id="linePreview"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- แถบปุ่มลอยบนมือถือ -->
+  <div class="mobile-bar lg:hidden">
+    <div class="grid grid-cols-2 gap-2 max-w-xl mx-auto">
+      <button type="button" class="btn btn-line" data-action="line">
+        <span class="btn-spinner"></span><i class="fa-brands fa-line btn-icon"></i><span>คัดลอก LINE</span>
+      </button>
+      <button type="button" class="btn btn-primary" data-action="png">
+        <span class="btn-spinner"></span><i class="fa-solid fa-image btn-icon"></i><span>ดาวน์โหลด PNG</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="exportStage" aria-hidden="true"></div>
+<div id="toastStack" aria-live="polite"></div>
+
+<!-- Confirm modal -->
+<div id="confirmModal" class="overlay" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="glass modal-box">
+    <h3 id="confirmTitle">ยืนยันการทำรายการ</h3>
+    <p id="confirmMsg"></p>
+    <div class="flex justify-end gap-2 mt-5">
+      <button type="button" class="btn btn-ghost" id="confirmCancel">ยกเลิก</button>
+      <button type="button" class="btn btn-danger-ghost" id="confirmOk">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal: เชื่อมต่อ Google Sheets -->
+<div id="settingsModal" class="overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="glass modal-box wide">
+    <div class="flex items-start gap-3">
+      <div class="card-icon ic-lime"><i class="fa-solid fa-table"></i></div>
+      <div class="min-w-0 flex-1">
+        <h3 id="settingsTitle">บันทึกข้อมูลลง Google Sheets</h3>
+        <p>วาง URL ของ Web App ที่ได้จากการ Deploy ไฟล์ <b>Code_SDC_SBK_Daily_v2.gs</b> (ลงท้ายด้วย /exec)</p>
+      </div>
+      <button type="button" class="icon-btn" data-action="settings-close" aria-label="ปิดหน้าต่าง"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <label class="field mt-4" data-field="sheetUrl">
+      <span class="field-label">Web App URL</span>
+      <div class="field-box">
+        <i class="fa-solid fa-link field-icon"></i>
+        <input class="field-input plain" id="sheetUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/xxxxxxxx/exec" aria-describedby="err-sheetUrl">
+      </div>
+      <span class="field-error" id="err-sheetUrl">URL ต้องขึ้นต้นด้วย https://script.google.com/macros/s/ และลงท้ายด้วย /exec</span>
+    </label>
+
+    <div class="settings-status" id="settingsStatus"></div>
+
+    <ol class="steps">
+      <li>สร้าง Google Sheets ใหม่ แล้วไปที่เมนู <b>ส่วนขยาย → Apps Script</b></li>
+      <li>ลบโค้ดเดิม วางโค้ดจากไฟล์ <code>Code_SDC_SBK_Daily_v2.gs</code> แล้วกดบันทึก</li>
+      <li>กด <b>Deploy → New deployment</b> เลือกประเภท <b>Web app</b></li>
+      <li>ตั้ง Execute as: <b>Me</b> และ Who has access: <b>Anyone</b> แล้วกด Deploy (อนุญาตสิทธิ์ครั้งแรก)</li>
+      <li>คัดลอก Web app URL มาวางในช่องด้านบน แล้วกด <b>ทดสอบและบันทึก</b></li>
+    </ol>
+
+    <div class="flex flex-wrap gap-2 mt-5 justify-end">
+      <button type="button" class="btn btn-danger-ghost mr-auto" data-action="settings-disconnect">
+        <i class="fa-solid fa-link-slash btn-icon"></i><span>ยกเลิกการเชื่อมต่อ</span>
+      </button>
+      <button type="button" class="btn btn-lime" data-action="settings-save">
+        <span class="btn-spinner"></span><i class="fa-solid fa-plug-circle-check btn-icon"></i><span>ทดสอบและบันทึก</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================================================================
+     1) ค่าคงที่ & ข้อมูลตัวอย่าง
+     ================================================================ */
+  const APP_VERSION = 'v2';
+  const REPORT_W = 794;
+  const REPORT_H = 1123;
+  // ใช้ key เดิมของ v1 สำหรับ draft/history เพื่อให้ข้อมูลที่เคยบันทึกไว้ยังอยู่หลังอัปเกรด
+  const STORAGE_KEYS = {
+    draft: 'sdcsbk.daily.draft.v1',
+    history: 'sdcsbk.daily.history.v1',
+    theme: 'sdcsbk.theme.v1',
+    sheetUrl: 'sdcsbk.sheetUrl.v1'
+  };
+  const NUMERIC_FIELDS = ['sbkPeople', 'sdcPeople', 'sbkCars', 'sdcCars', 'mrt', 'ebm'];
+  const FIELD_LABELS = {
+    date: 'วันที่รายงาน', sbkPeople: 'ยอดคน SBK', sdcPeople: 'ยอดคน SDC',
+    sbkCars: 'ยอดรถ SBK', sdcCars: 'ยอดรถ SDC', mrt: 'ยอด MRT', ebm: 'ยอด EBM'
+  };
+  const MAX_DIGITS = 9;
+  const SHEET_URL_RE = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
+
+  function getSampleData() {
+    return { date: '2026-09-22', sbkPeople: 36257, sdcPeople: 41408, sbkCars: 7661, sdcCars: 10730, mrt: 10090, ebm: 2209 };
+  }
+
+  /* index ตาม Date.getDay() (0 = อาทิตย์)
+     color = สีสว่างสำหรับพื้นมืด, ink = เฉดเข้มสำหรับพื้นขาว (ใบรายงาน/โหมดสว่าง) */
+  const DAYS = [
+    { en: 'Sun', th: 'อาทิตย์',  short: 'อา.', color: '#F43F5E', ink: '#E11D48' },
+    { en: 'Mon', th: 'จันทร์',   short: 'จ.',  color: '#FACC15', ink: '#CA8A04' },
+    { en: 'Tue', th: 'อังคาร',   short: 'อ.',  color: '#F472B6', ink: '#DB2777' },
+    { en: 'Wed', th: 'พุธ',      short: 'พ.',  color: '#22C55E', ink: '#16A34A' },
+    { en: 'Thu', th: 'พฤหัสบดี', short: 'พฤ.', color: '#FB923C', ink: '#EA580C' },
+    { en: 'Fri', th: 'ศุกร์',    short: 'ศ.',  color: '#3B82F6', ink: '#2563EB' },
+    { en: 'Sat', th: 'เสาร์',    short: 'ส.',  color: '#A855F7', ink: '#9333EA' }
+  ];
+  const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0];
+  const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+    'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+  /* ================================================================
+     2) State
+     ================================================================ */
+  const state = {
+    data: getSampleData(),
+    touched: new Set(),
+    renderQueued: false,
+    draftTimer: null,
+    history: [],             // รายการที่แสดงในกล่องประวัติ (มาจาก Sheets หรือเครื่อง)
+    historySource: 'local',  // 'sheets' | 'local' | 'local-fallback'
+    historyLoading: false,
+    sheetUrl: ''
+  };
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+  /* ================================================================
+     3) Utilities
+     ================================================================ */
+  const nfInt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  /** ช่องว่างคืน null (ไม่ใช่ 0) เพราะ "ยังไม่กรอก" กับ "กรอก 0" ต่างกันในรายงาน */
+  function parseNum(v) {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return Number.isFinite(v) && v >= 0 ? Math.round(v) : null;
+    const digits = String(v).replace(/[^\d]/g, '').slice(0, MAX_DIGITS);
+    return digits === '' ? null : Number(digits);
+  }
+
+  /** ปัดเศษ half-up ทั้งบวก/ลบ + EPSILON กันปัญหา floating point */
+  function roundTo(n, d) {
+    const f = Math.pow(10, d);
+    const sign = n < 0 ? -1 : 1;
+    return sign * Math.round((Math.abs(n) + Number.EPSILON) * f) / f;
+  }
+
+  const fmtInt = n => (n === null || n === undefined || !Number.isFinite(n)) ? '—' : nfInt.format(n);
+  function fmtSignedInt(n) {
+    if (n === null || n === undefined || !Number.isFinite(n)) return '—';
+    if (n === 0) return '0';
+    return (n > 0 ? '+' : '-') + nfInt.format(Math.abs(n));
+  }
+  function fmtRatio(r) {
+    if (r === null || r === undefined || !Number.isFinite(r)) return '—';
+    return nf2.format(roundTo(r, 2));
+  }
+  function fmtPct(p) {
+    if (p === null || p === undefined || !Number.isFinite(p)) return '—';
+    const v = roundTo(p, 1);
+    if (v === 0) return '0.0%';
+    return (v > 0 ? '+' : '-') + nf1.format(Math.abs(v)) + '%';
+  }
+
+  /** "YYYY-MM-DD" → Date แบบ local (new Date(str) จะตีเป็น UTC ทำให้วันเลื่อนได้) รองรับปี พ.ศ. */
+  function parseISODate(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    if (!m) return null;
+    let y = Number(m[1]);
+    if (y > 2400) y -= 543;
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo || dt.getDate() !== d) return null;
+    return dt;
+  }
+  const pad2 = n => String(n).padStart(2, '0');
+  const toISODate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const beYear = d => d.getFullYear() + 543;
+  const fmtThaiLong = d => `วัน${DAYS[d.getDay()].th}ที่ ${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${beYear(d)}`;
+  const fmtThaiSlash = d => `วัน${DAYS[d.getDay()].th}ที่ ${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${beYear(d)}`;
+  const fmtThaiShort = d => `${d.getDate()} ${THAI_MONTHS_SHORT[d.getMonth()]} ${beYear(d)}`;
+  const fmtTime = d => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
+  const currentTheme = () => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+  /** สีประจำวันตามพื้นหลัง: พื้นขาวใช้ ink (เข้ม) เพื่อให้อ่านออก */
+  const dayColor = (day, onLight = currentTheme() === 'light') => (onLight ? day.ink : day.color);
+
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const nextFrame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  /* ================================================================
+     4) Calculation module
+     ================================================================ */
+  /**
+   * เปรียบเทียบ SDC กับ SBK (ใช้ SBK เป็นฐาน)
+   *  ratio = SDC ÷ SBK,  diff = SDC − SBK,  pct = (SDC − SBK) ÷ SBK × 100
+   * SBK = 0 → ratio/pct = null (แสดง "—") แทน Infinity/NaN
+   */
+  function compare(sbk, sdc) {
+    if (sbk === null || sdc === null || sbk === undefined || sdc === undefined) {
+      return { ready: false, ratio: null, diff: null, pct: null, trend: 'none' };
+    }
+    const diff = sdc - sbk;
+    const ratio = sbk > 0 ? sdc / sbk : null;
+    const pct = sbk > 0 ? (diff / sbk) * 100 : null;
+    const trend = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+    return { ready: true, ratio, diff, pct, trend };
+  }
+
+  function buildModel() {
+    const d = state.data;
+    return {
+      dateObj: parseISODate(d.date),
+      people: { sbk: d.sbkPeople, sdc: d.sdcPeople, cmp: compare(d.sbkPeople, d.sdcPeople) },
+      cars: { sbk: d.sbkCars, sdc: d.sdcCars, cmp: compare(d.sbkCars, d.sdcCars) },
+      mrt: d.mrt,
+      ebm: d.ebm
+    };
+  }
+
+  function getMissingFields() {
+    const missing = [];
+    if (!parseISODate(state.data.date)) missing.push('date');
+    NUMERIC_FIELDS.forEach(k => { if (state.data[k] === null || state.data[k] === undefined) missing.push(k); });
+    return missing;
+  }
+
+  function trendInfo(trend) {
+    switch (trend) {
+      case 'up': return { cls: 't-up', icon: 'fa-arrow-trend-up', text: 'SDC สูงกว่า SBK' };
+      case 'down': return { cls: 't-down', icon: 'fa-arrow-trend-down', text: 'SDC ต่ำกว่า SBK' };
+      case 'flat': return { cls: 't-flat', icon: 'fa-equals', text: 'เท่ากัน' };
+      default: return { cls: 't-none', icon: 'fa-hourglass-half', text: 'รอข้อมูล' };
+    }
+  }
+
+  function barWidths(sbk, sdc) {
+    const max = Math.max(sbk || 0, sdc || 0);
+    const w = v => (max > 0 && v !== null && v !== undefined) ? (v / max * 100) : 0;
+    return { sbk: w(sbk).toFixed(1), sdc: w(sdc).toFixed(1) };
+  }
+
+  /* ================================================================
+     5) Templates
+     ================================================================ */
+  function calcCardTemplate({ title, icon, unit, block }) {
+    const { sbk, sdc, cmp } = block;
+    const t = trendInfo(cmp.trend);
+    const w = barWidths(sbk, sdc);
+    let formula;
+    if (!cmp.ready) formula = 'กรอกยอด SBK และ SDC เพื่อคำนวณ';
+    else if (cmp.ratio === null) formula = 'ยอด SBK เป็น 0 จึงคำนวณอัตราส่วนไม่ได้';
+    else formula = `${fmtInt(sdc)} ÷ ${fmtInt(sbk)} = ${fmtRatio(cmp.ratio)}`;
+    return `
+      <div class="calc-head">
+        <div class="card-icon sm"><i class="fa-solid ${icon}"></i></div>
+        <h3 class="calc-title">${title}</h3>
+        <span class="trend-chip ${t.cls}"><i class="fa-solid ${t.icon}"></i>${t.text}</span>
+      </div>
+      <div class="calc-ratio"><span class="calc-ratio-num">${fmtRatio(cmp.ratio)}</span><span class="calc-ratio-unit">เท่า</span></div>
+      <div class="calc-ratio-label">อัตราส่วน SDC ÷ SBK</div>
+      <div class="calc-formula">${formula}</div>
+      <div class="calc-stats">
+        <div class="calc-stat"><span>ผลต่าง (SDC − SBK)</span><strong class="${t.cls}">${fmtSignedInt(cmp.diff)} ${cmp.ready ? unit : ''}</strong></div>
+        <div class="calc-stat"><span>เปรียบเทียบ (%)</span><strong class="${t.cls}">${fmtPct(cmp.pct)}</strong></div>
+      </div>
+      <div class="calc-bars">
+        <div class="calc-bar-row"><span class="tag" style="color:var(--cyan)">SBK</span><div class="calc-track"><div class="calc-fill fill-sbk" style="width:${w.sbk}%"></div></div><span class="val">${fmtInt(sbk)}</span></div>
+        <div class="calc-bar-row"><span class="tag" style="color:var(--purple)">SDC</span><div class="calc-track"><div class="calc-fill fill-sdc" style="width:${w.sdc}%"></div></div><span class="val">${fmtInt(sdc)}</span></div>
+      </div>`;
+  }
+
+  function reportSectionTemplate({ icon, title, unit, block }) {
+    const { sbk, sdc, cmp } = block;
+    const t = trendInfo(cmp.trend);
+    const w = barWidths(sbk, sdc);
+    const note = cmp.ready && cmp.ratio !== null ? `${fmtInt(sdc)} ÷ ${fmtInt(sbk)}` : 'ฐานเปรียบเทียบ: SBK';
+    return `
+      <section class="rpt-sec">
+        <div class="rpt-sec-head">
+          <div class="rpt-sec-icon"><i class="fa-solid ${icon}"></i></div>
+          <h2 class="rpt-sec-title">${title}</h2>
+          <span class="rpt-sec-unit">หน่วย: ${unit}</span>
+        </div>
+        <div class="rpt-pair">
+          <div class="rpt-site is-sbk">
+            <div class="rpt-site-top"><span class="rpt-site-tag">SBK</span><span class="rpt-site-name">ซีคอนบางแค</span></div>
+            <div class="rpt-site-val">${fmtInt(sbk)}<small>${unit}</small></div>
+            <div class="rpt-bar"><span style="width:${w.sbk}%"></span></div>
+          </div>
+          <div class="rpt-site is-sdc">
+            <div class="rpt-site-top"><span class="rpt-site-tag">SDC</span><span class="rpt-site-name">ซีคอนศรีนครินทร์</span></div>
+            <div class="rpt-site-val">${fmtInt(sdc)}<small>${unit}</small></div>
+            <div class="rpt-bar"><span style="width:${w.sdc}%"></span></div>
+          </div>
+        </div>
+        <div class="rpt-metrics">
+          <div class="rpt-metric">
+            <div class="rpt-metric-label">อัตราส่วน (SDC ÷ SBK)</div>
+            <div class="rpt-metric-val">${fmtRatio(cmp.ratio)}<small>เท่า</small></div>
+            <div class="rpt-metric-note">${note}</div>
+          </div>
+          <div class="rpt-metric">
+            <div class="rpt-metric-label">ผลต่าง (SDC − SBK)</div>
+            <div class="rpt-metric-val ${t.cls}">${fmtSignedInt(cmp.diff)}<small>${unit}</small></div>
+            <div class="rpt-metric-note">${t.text}</div>
+          </div>
+          <div class="rpt-metric">
+            <div class="rpt-metric-label">เปรียบเทียบ (%)</div>
+            <div class="rpt-metric-val ${t.cls}">${fmtPct(cmp.pct)}</div>
+            <div class="rpt-metric-note">เทียบกับยอด SBK</div>
+          </div>
+        </div>
+      </section>`;
+  }
+
+  /** ใบรายงานโทนสว่าง — สีประจำวันใช้ ink เสมอเพราะพื้นเป็นสีขาว */
+  function reportTemplate(m) {
+    const d = m.dateObj;
+    const day = d ? DAYS[d.getDay()] : null;
+    const now = new Date();
+    return `
+      <div class="rpt" style="--day:${day ? day.ink : '#0891B2'}">
+        <div class="rpt-orb rpt-orb-a"></div>
+        <div class="rpt-orb rpt-orb-b"></div>
+        <div class="rpt-orb rpt-orb-c"></div>
+        <div class="rpt-inner">
+          <header class="rpt-head">
+            <div class="rpt-brand">
+              <div class="rpt-mark"><i class="fa-solid fa-chart-column"></i></div>
+              <div>
+                <div class="rpt-kicker">SDC vs SBK Daily Compare</div>
+                <h1 class="rpt-title">รายงานสรุปยอดประจำวัน</h1>
+                <div class="rpt-sub">ศูนย์การค้าซีคอนศรีนครินทร์ (SDC) เปรียบเทียบกับ ซีคอนบางแค (SBK)</div>
+              </div>
+            </div>
+            <div class="rpt-date">
+              <div class="rpt-date-day">${day ? 'วัน' + day.th : 'ยังไม่เลือกวันที่'}</div>
+              <div class="rpt-date-num">${d ? d.getDate() : '—'}</div>
+              <div class="rpt-date-my">${d ? THAI_MONTHS[d.getMonth()] + ' ' + beYear(d) : '&nbsp;'}</div>
+            </div>
+          </header>
+          <div class="rpt-rule"></div>
+          <div class="rpt-body">
+            ${reportSectionTemplate({ icon: 'fa-people-group', title: 'ยอดคนเข้าศูนย์ฯ', unit: 'คน', block: m.people })}
+            ${reportSectionTemplate({ icon: 'fa-car-side', title: 'ยอดรถยนต์', unit: 'คัน', block: m.cars })}
+            <section class="rpt-sec">
+              <div class="rpt-sec-head">
+                <div class="rpt-sec-icon"><i class="fa-solid fa-route"></i></div>
+                <h2 class="rpt-sec-title">ข้อมูลการเดินทางร่วม</h2>
+                <span class="rpt-sec-unit">หน่วย: คน</span>
+              </div>
+              <div class="rpt-transit">
+                <div class="rpt-tr">
+                  <div class="rpt-tr-icon"><i class="fa-solid fa-train-subway"></i></div>
+                  <div><div class="rpt-tr-label">MRT</div><div class="rpt-tr-val">${fmtInt(m.mrt)}<small>คน</small></div></div>
+                </div>
+                <div class="rpt-tr">
+                  <div class="rpt-tr-icon"><i class="fa-solid fa-bus"></i></div>
+                  <div><div class="rpt-tr-label">EBM</div><div class="rpt-tr-val">${fmtInt(m.ebm)}<small>คน</small></div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <footer class="rpt-foot">
+            <div>
+              <div>ข้อมูลประจำ${d ? fmtThaiLong(d) : ' —'}</div>
+              <div>จัดทำรายงานเมื่อ ${fmtThaiShort(now)} เวลา ${fmtTime(now)} น.</div>
+            </div>
+            <div class="rpt-foot-brand"><i class="fa-solid fa-chart-column"></i>SDC vs SBK Daily Compare</div>
+          </footer>
+        </div>
+      </div>`;
+  }
+
+  function buildLineText(m) {
+    const d = m.dateObj;
+    const cmpLine = (block, unit) => {
+      const c = block.cmp;
+      const ratio = c.ratio === null ? '—' : `${fmtRatio(c.ratio)} เท่า`;
+      return `(อัตราส่วน ${ratio} | ผลต่าง ${fmtSignedInt(c.diff)} ${unit} / ${fmtPct(c.pct)})`;
+    };
+    return [
+      '📊 *รายงานสรุปยอดประจำวัน*',
+      `📅 ${d ? fmtThaiSlash(d) : '—'}`,
+      '',
+      '👥 *ยอดคนเข้าศูนย์ฯ*',
+      `• SBK: ${fmtInt(m.people.sbk)} คน`,
+      `• SDC: ${fmtInt(m.people.sdc)} คน ${cmpLine(m.people, 'คน')}`,
+      '',
+      '🚗 *ยอดรถยนต์*',
+      `• SBK: ${fmtInt(m.cars.sbk)} คัน`,
+      `• SDC: ${fmtInt(m.cars.sdc)} คัน ${cmpLine(m.cars, 'คัน')}`,
+      '',
+      '🚆 *ข้อมูลการเดินทางร่วม*',
+      `• MRT: ${fmtInt(m.mrt)} คน`,
+      `• EBM: ${fmtInt(m.ebm)} คน`
+    ].join('\n');
+  }
+
+  /* ================================================================
+     6) Render
+     ================================================================ */
+  function scheduleRender() {
+    if (state.renderQueued) return;
+    state.renderQueued = true;
+    requestAnimationFrame(() => { state.renderQueued = false; renderAll(); });
+  }
+
+  function renderAll() {
+    const m = buildModel();
+    renderDateMeta(m);
+    renderWeekdays(m);
+    renderValidation();
+    renderCalc(m);
+    renderReports(m);
+    renderLinePreview(m);
+    renderHistory();
+    renderSyncState();
+  }
+
+  function renderDateMeta(m) {
+    const el = $('#dateMeta');
+    if (!m.dateObj) { el.textContent = 'ยังไม่ได้เลือกวันที่'; el.style.removeProperty('--day'); return; }
+    el.style.setProperty('--day', dayColor(DAYS[m.dateObj.getDay()]));
+    el.innerHTML = `<strong>${escapeHtml(fmtThaiLong(m.dateObj))}</strong>`;
+  }
+
+  function renderWeekdays(m) {
+    const current = m.dateObj ? m.dateObj.getDay() : -1;
+    const group = $('#dowGroup');
+    if (!group.children.length) {
+      group.innerHTML = DOW_ORDER.map(i => {
+        const d = DAYS[i];
+        return `<button type="button" class="dow-btn" role="radio" aria-checked="false" data-action="dow" data-dow="${i}" title="วัน${d.th}">
+                  <span class="th">${d.short}</span><span class="en">${d.en}</span></button>`;
+      }).join('');
+    }
+    $$('.dow-btn', group).forEach(btn => {
+      const i = Number(btn.dataset.dow);
+      const on = i === current;
+      btn.style.setProperty('--day', dayColor(DAYS[i])); // อัปเดตทุกครั้งเผื่อสลับธีม
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      btn.tabIndex = on || (current === -1 && btn === group.firstElementChild) ? 0 : -1;
+    });
+  }
+
+  function renderValidation() {
+    const missing = new Set(getMissingFields());
+    $$('#formCard .field[data-field]').forEach(f => {
+      const key = f.dataset.field;
+      f.classList.toggle('is-invalid', missing.has(key) && state.touched.has(key));
+    });
+  }
+
+  function renderCalc(m) {
+    $('#calcPeople').innerHTML = calcCardTemplate({ title: 'ยอดคนเข้าศูนย์ฯ', icon: 'fa-people-group', unit: 'คน', block: m.people });
+    $('#calcCars').innerHTML = calcCardTemplate({ title: 'ยอดรถยนต์', icon: 'fa-car-side', unit: 'คัน', block: m.cars });
+  }
+
+  function renderReports(m = buildModel()) {
+    const html = reportTemplate(m);
+    $('#rptScaler').innerHTML = html;
+    $('#exportStage').innerHTML = html;
+    fitPreview();
+  }
+
+  function renderLinePreview(m) {
+    $('#linePreview').textContent = buildLineText(m);
+  }
+
+  /** ย่อใบรายงาน 794px ให้พอดีกล่องแสดงผล (ทั้งมือถือและจอใหญ่) */
+  function fitPreview() {
+    const vp = $('#rptViewport');
+    const sc = $('#rptScaler');
+    const w = vp.clientWidth;
+    if (!w) return;
+    const s = Math.min(1, w / REPORT_W);
+    sc.style.transform = `scale(${s})`;
+    vp.style.height = `${Math.round(REPORT_H * s)}px`;
+    sc.style.left = `${Math.max(0, (w - REPORT_W * s) / 2)}px`;
+  }
+
+  function fillForm() {
+    $('#reportDate').value = state.data.date || '';
+    NUMERIC_FIELDS.forEach(k => {
+      const v = state.data[k];
+      $('#' + k).value = (v === null || v === undefined) ? '' : nfInt.format(v);
+    });
+  }
+
+  function renderHistory() {
+    const box = $('#historyList');
+    const srcLabel = {
+      sheets: 'ดึงจาก Google Sheets',
+      local: 'เก็บไว้ในเบราว์เซอร์เครื่องนี้',
+      'local-fallback': 'เชื่อม Google Sheets ไม่ได้ กำลังแสดงข้อมูลสำรองในเครื่อง'
+    };
+    $('#historySource').textContent = srcLabel[state.historySource] || srcLabel.local;
+
+    if (state.historyLoading) {
+      $('#historyCount').textContent = '';
+      box.innerHTML = `<div class="empty-state"><span class="btn-spinner"></span><br>กำลังโหลดข้อมูลจาก Google Sheets...</div>`;
+      return;
+    }
+    const list = state.history.slice().sort((a, b) => b.date.localeCompare(a.date));
+    $('#historyCount').textContent = list.length ? `ทั้งหมด ${nfInt.format(list.length)} รายการ` : '';
+    if (!list.length) {
+      box.innerHTML = `<div class="empty-state"><i class="fa-regular fa-folder-open"></i>ยังไม่มีรายการที่บันทึกไว้<br>กรอกยอดให้ครบแล้วกด “บันทึกข้อมูล” เพื่อเก็บข้อมูลของวันนี้</div>`;
+      return;
+    }
+    box.innerHTML = list.map(r => {
+      const d = parseISODate(r.date);
+      const day = DAYS[d.getDay()];
+      const p = compare(r.sbkPeople, r.sdcPeople);
+      const c = compare(r.sbkCars, r.sdcCars);
+      const isCurrent = r.date === state.data.date;
+      return `
+        <div class="history-item ${isCurrent ? 'is-current' : ''}" style="--day:${dayColor(day)}">
+          <div class="history-day"><b>${d.getDate()}</b><span>${THAI_MONTHS_SHORT[d.getMonth()]}</span></div>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-display font-semibold truncate c-heading">${escapeHtml(fmtThaiShort(d))} <span style="color:var(--day);font-weight:500">(${day.th})</span></div>
+            <div class="text-xs truncate c-muted">คน ${fmtInt(r.sbkPeople)} / ${fmtInt(r.sdcPeople)} (${fmtRatio(p.ratio)} เท่า), รถ ${fmtInt(r.sbkCars)} / ${fmtInt(r.sdcCars)} (${fmtRatio(c.ratio)} เท่า)</div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="load" data-date="${r.date}" title="เปิดข้อมูลวันนี้" aria-label="เปิดข้อมูล ${escapeHtml(fmtThaiShort(d))}"><i class="fa-regular fa-folder-open"></i></button>
+          <button type="button" class="btn btn-danger-ghost btn-sm" data-action="delete" data-date="${r.date}" title="ลบรายการ" aria-label="ลบข้อมูล ${escapeHtml(fmtThaiShort(d))}"><span class="btn-spinner"></span><i class="fa-regular fa-trash-can btn-icon"></i></button>
+        </div>`;
+    }).join('');
+  }
+
+  function renderSyncState() {
+    const chip = $('#syncChip');
+    const on = !!state.sheetUrl;
+    chip.classList.toggle('is-online', on);
+    chip.classList.toggle('is-local', !on);
+    $('#syncText').textContent = on ? 'Google Sheets' : 'บันทึกในเครื่อง';
+    chip.title = on ? 'เชื่อมต่อ Google Sheets แล้ว (กดเพื่อตั้งค่า)' : 'ยังไม่เชื่อม Google Sheets (กดเพื่อตั้งค่า)';
+    $('#saveLabel').textContent = on ? 'บันทึกลง Google Sheets' : 'บันทึกข้อมูล (ในเครื่อง)';
+  }
+
+  /* ================================================================
+     7) Theme
+     ================================================================ */
+  function applyTheme(theme, persist) {
+    document.documentElement.dataset.theme = theme;
+    $('meta[name="theme-color"]').setAttribute('content', theme === 'light' ? '#EEF2FA' : '#050814');
+    // ไอคอนแสดง "ธีมที่จะสลับไป" ให้ผู้ใช้รู้ว่ากดแล้วจะได้อะไร
+    $('#themeIcon').className = theme === 'light' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
+    $('#themeBtn').setAttribute('aria-label', theme === 'light' ? 'เปลี่ยนเป็นโหมดมืด' : 'เปลี่ยนเป็นโหมดสว่าง');
+    $('#themeBtn').title = $('#themeBtn').getAttribute('aria-label');
+    if (persist) storageSet(STORAGE_KEYS.theme, theme);
+  }
+
+  function handleToggleTheme() {
+    const next = currentTheme() === 'light' ? 'dark' : 'light';
+    applyTheme(next, true);
+    renderAll();
+    showToast('info', next === 'light' ? 'เปลี่ยนเป็นโหมดสว่างแล้ว' : 'เปลี่ยนเป็นโหมดมืดแล้ว', 'ใบรายงานที่ส่งออกยังเป็นโทนสว่างเหมือนเดิม');
+  }
+
+  /* ================================================================
+     8) Local storage
+     ใช้ try/catch เพราะโหมดส่วนตัว/นโยบายองค์กรบางแห่งปิด localStorage
+     ================================================================ */
+  function storageGet(key, fallback) {
+    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch (err) { console.warn('อ่าน localStorage ไม่ได้:', err); return fallback; }
+  }
+  function storageSet(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (err) { console.warn('เขียน localStorage ไม่ได้:', err); return false; }
+  }
+  function storageRemove(key) {
+    try { localStorage.removeItem(key); } catch (_) { /* ไม่สำคัญ */ }
+  }
+
+  /** ตรวจรูปแบบข้อมูลทุกครั้งที่อ่านกลับมา (ทั้งจากเครื่องและ Sheets) กันข้อมูลเสียทำให้แอปพัง */
+  function sanitizeRecord(r) {
+    if (!r || typeof r !== 'object') return null;
+    const dt = typeof r.date === 'string' ? parseISODate(r.date.trim()) : null;
+    const out = { date: dt ? toISODate(dt) : '' };
+    NUMERIC_FIELDS.forEach(k => { out[k] = parseNum(r[k]); });
+    if (r.savedAt) out.savedAt = String(r.savedAt);
+    return out;
+  }
+
+  function loadLocalHistory() {
+    const list = storageGet(STORAGE_KEYS.history, []);
+    if (!Array.isArray(list)) return [];
+    return list.map(sanitizeRecord).filter(r => r && r.date);
+  }
+  function upsertLocal(record) {
+    const list = loadLocalHistory();
+    const idx = list.findIndex(r => r.date === record.date);
+    if (idx >= 0) list[idx] = record; else list.push(record);
+    list.sort((a, b) => b.date.localeCompare(a.date));
+    return storageSet(STORAGE_KEYS.history, list);
+  }
+  function deleteLocal(date) {
+    return storageSet(STORAGE_KEYS.history, loadLocalHistory().filter(r => r.date !== date));
+  }
+
+  function scheduleDraftSave() {
+    clearTimeout(state.draftTimer);
+    state.draftTimer = setTimeout(() => storageSet(STORAGE_KEYS.draft, state.data), 400);
+  }
+
+  /* ================================================================
+     9) Google Sheets API (JSONP)
+     ใช้ JSONP (แท็ก <script>) แทน fetch เพราะ Apps Script ไม่ส่ง CORS header
+     และต้องใช้ได้แม้เปิดไฟล์ตรงจากเครื่อง (file://) — ข้อดีคืออ่านผลลัพธ์ได้จริง
+     จึงรู้แน่ว่าบันทึกสำเร็จ ต่างจาก fetch no-cors ที่ได้แค่ "ส่งออกไปแล้ว"
+     ================================================================ */
+  function jsonp(url, params, timeoutMs = 20000) {
+    return new Promise((resolve, reject) => {
+      const cb = '__sdcsbk_cb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      const qs = new URLSearchParams({ ...params, callback: cb, _: String(Date.now()) });
+      const script = document.createElement('script');
+      let settled = false;
+      const finish = () => {
+        settled = true;
+        clearTimeout(timer);
+        // เก็บ callback เปล่าไว้ กันกรณีคำตอบมาช้าหลัง timeout แล้วเกิด error "is not a function"
+        window[cb] = () => { delete window[cb]; };
+        script.remove();
+      };
+      window[cb] = data => { if (settled) return; finish(); resolve(data); };
+      script.onerror = () => {
+        if (settled) return;
+        finish();
+        reject(new Error('เชื่อมต่อ Google Apps Script ไม่ได้ ตรวจสอบ URL, สิทธิ์ "Anyone" และอินเทอร์เน็ต'));
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        finish();
+        reject(new Error('Google Sheets ไม่ตอบกลับภายในเวลาที่กำหนด กรุณาลองใหม่'));
+      }, timeoutMs);
+      script.src = url + (url.includes('?') ? '&' : '?') + qs.toString();
+      document.body.appendChild(script);
+    });
+  }
+
+  async function sheetApi(action, params = {}, url = state.sheetUrl) {
+    if (!url) throw new Error('ยังไม่ได้ตั้งค่า Google Sheets');
+    const res = await jsonp(url, { action, ...params });
+    if (!res || res.ok !== true) throw new Error((res && res.error) || 'Google Sheets ตอบกลับไม่ถูกต้อง');
+    return res;
+  }
+
+  /** โหลดประวัติ: เชื่อม Sheets แล้วดึงจาก Sheets (ข้อมูลกลางของทุกเครื่อง) ถ้าล้มเหลวใช้ข้อมูลสำรองในเครื่อง */
+  async function refreshHistory({ silent = false } = {}) {
+    if (!state.sheetUrl) {
+      state.history = loadLocalHistory();
+      state.historySource = 'local';
+      renderHistory();
+      return;
+    }
+    state.historyLoading = true;
+    setBusy('refresh', true);
+    renderHistory();
+    try {
+      const res = await sheetApi('list');
+      state.history = (Array.isArray(res.records) ? res.records : []).map(sanitizeRecord).filter(r => r && r.date);
+      state.historySource = 'sheets';
+      if (!silent) showToast('success', 'โหลดประวัติจาก Google Sheets แล้ว', `ทั้งหมด ${nfInt.format(state.history.length)} รายการ`);
+    } catch (err) {
+      console.error(err);
+      state.history = loadLocalHistory();
+      state.historySource = 'local-fallback';
+      showToast('error', 'โหลดข้อมูลจาก Google Sheets ไม่สำเร็จ', err.message);
+    } finally {
+      state.historyLoading = false;
+      setBusy('refresh', false);
+      renderHistory();
+    }
+  }
+
+  /* ================================================================
+     10) Feedback UI: toast / confirm / busy
+     ================================================================ */
+  function showToast(type, title, detail) {
+    const icons = { success: 'fa-circle-check', error: 'fa-circle-exclamation', info: 'fa-circle-info' };
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    el.innerHTML = `
+      <i class="fa-solid ${icons[type] || icons.info}"></i>
+      <div class="min-w-0">
+        <div class="toast-title">${escapeHtml(title)}</div>
+        ${detail ? `<div class="toast-detail">${escapeHtml(detail)}</div>` : ''}
+      </div>
+      <button type="button" class="toast-close" aria-label="ปิดการแจ้งเตือน">&times;</button>`;
+    const stack = $('#toastStack');
+    stack.appendChild(el);
+    while (stack.children.length > 3) stack.firstElementChild.remove();
+    requestAnimationFrame(() => el.classList.add('show'));
+    const close = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 300); };
+    const timer = setTimeout(close, type === 'error' ? 5600 : 3200);
+    el.querySelector('.toast-close').addEventListener('click', () => { clearTimeout(timer); close(); });
+  }
+
+  function confirmDialog({ title, message, okText = 'ยืนยัน' }) {
+    return new Promise(resolve => {
+      const modal = $('#confirmModal');
+      const ok = $('#confirmOk');
+      const cancel = $('#confirmCancel');
+      const lastFocus = document.activeElement;
+      $('#confirmTitle').textContent = title;
+      $('#confirmMsg').textContent = message;
+      ok.textContent = okText;
+      modal.classList.add('open');
+      cancel.focus();
+      const done = result => {
+        modal.classList.remove('open');
+        ok.removeEventListener('click', onOk);
+        cancel.removeEventListener('click', onCancel);
+        modal.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onKey);
+        if (lastFocus && lastFocus.focus) lastFocus.focus();
+        resolve(result);
+      };
+      const onOk = () => done(true);
+      const onCancel = () => done(false);
+      const onBackdrop = e => { if (e.target === modal) done(false); };
+      const onKey = e => { if (e.key === 'Escape') done(false); };
+      ok.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+      modal.addEventListener('click', onBackdrop);
+      document.addEventListener('keydown', onKey);
+    });
+  }
+
+  /** ปุ่ม action เดียวกันมีหลายตำแหน่ง จึงล็อกทุกปุ่มพร้อมกัน กันกดซ้ำระหว่างทำงาน */
+  function setBusy(action, busy, root = document) {
+    $$(`[data-action="${action}"]`, root).forEach(b => {
+      b.disabled = busy;
+      b.classList.toggle('is-loading', busy);
+      b.setAttribute('aria-busy', busy ? 'true' : 'false');
+    });
+  }
+
+  function ensureComplete() {
+    const missing = getMissingFields();
+    if (!missing.length) return true;
+    missing.forEach(k => state.touched.add(k));
+    renderValidation();
+    const first = missing[0] === 'date' ? $('#reportDate') : $('#' + missing[0]);
+    if (first) {
+      first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => first.focus({ preventScroll: true }), 350);
+    }
+    showToast('error', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'ยังขาด: ' + missing.map(k => FIELD_LABELS[k]).join(', '));
+    return false;
+  }
+
+  /* ================================================================
+     11) Actions: LINE / PNG / Print
+     ================================================================ */
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try { await navigator.clipboard.writeText(text); return true; }
+      catch (err) { console.warn('Clipboard API ล้มเหลว ใช้วิธีสำรอง:', err); }
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, text.length); // iOS Safari ต้องกำหนด range เอง
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+
+  async function handleCopyLine() {
+    if (!ensureComplete()) return;
+    setBusy('line', true);
+    try {
+      const ok = await copyText(buildLineText(buildModel()));
+      await wait(250);
+      if (ok) showToast('success', 'คัดลอกข้อความสำหรับ LINE แล้ว', 'เปิดแชต LINE แล้ววางข้อความได้ทันที');
+      else showToast('error', 'คัดลอกอัตโนมัติไม่สำเร็จ', 'กรุณาเลือกข้อความในช่อง “ข้อความสำหรับ LINE” แล้วคัดลอกด้วยตนเอง');
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'คัดลอกข้อความไม่สำเร็จ', err.message || 'กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setBusy('line', false);
+    }
+  }
+
+  function reportFileName(ext) {
+    const d = parseISODate(state.data.date);
+    const stamp = d ? `${beYear(d)}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` : 'undated';
+    return `SDC-SBK_Daily_Compare_${stamp}.${ext}`;
+  }
+
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  async function handleExportPNG() {
+    if (!ensureComplete()) return;
+    if (typeof window.html2canvas !== 'function') {
+      showToast('error', 'โหลดเครื่องมือสร้างรูปภาพไม่สำเร็จ', 'กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต แล้วรีเฟรชหน้าเว็บอีกครั้ง');
+      return;
+    }
+    setBusy('png', true);
+    try {
+      renderReports();
+      if (document.fonts && document.fonts.ready) await document.fonts.ready; // รอฟอนต์ไทยโหลดครบก่อนวาด
+      await nextFrame();
+      const canvas = await window.html2canvas($('#exportStage .rpt'), {
+        scale: 2,                 // 1588×2246 px คมพอสำหรับ LINE และพิมพ์ A4
+        backgroundColor: '#FFFFFF',
+        useCORS: true,
+        logging: false,
+        width: REPORT_W,
+        height: REPORT_H,
+        windowWidth: 1400,
+        onclone: doc => {
+          const st = doc.getElementById('exportStage');
+          if (st) { st.style.left = '0px'; st.style.top = '0px'; }
+        }
+      });
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(b => (b ? resolve(b) : reject(new Error('แปลงภาพเป็นไฟล์ไม่สำเร็จ'))), 'image/png');
+      });
+      downloadBlob(blob, reportFileName('png'));
+      showToast('success', 'ดาวน์โหลดรูปภาพรายงานสำเร็จ', `${reportFileName('png')} (${canvas.width}×${canvas.height} px)`);
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'สร้างรูปภาพไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง หากยังไม่ได้ให้ใช้ปุ่ม “พิมพ์ / PDF” แทน');
+    } finally {
+      setBusy('png', false);
+    }
+  }
+
+  async function handlePrint() {
+    if (!ensureComplete()) return;
+    setBusy('print', true);
+    try {
+      renderReports();
+      if (document.fonts && document.fonts.ready) await document.fonts.ready;
+      await nextFrame();
+      window.print();
+      showToast('info', 'เปิดหน้าต่างพิมพ์แล้ว', 'เลือกเครื่องพิมพ์ หรือ “บันทึกเป็น PDF” ขนาดกระดาษ A4');
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'เปิดหน้าต่างพิมพ์ไม่สำเร็จ', 'กรุณาใช้คำสั่งพิมพ์ของเบราว์เซอร์ (Ctrl+P) แทน');
+    } finally {
+      setBusy('print', false);
+    }
+  }
+
+  /* ================================================================
+     12) Actions: Save / Load / Delete / Sample / Clear / Weekday
+     ================================================================ */
+  async function handleSave() {
+    if (!ensureComplete()) return;
+    setBusy('save', true);
+    const record = sanitizeRecord({ ...state.data, savedAt: new Date().toISOString() });
+    const d = parseISODate(record.date);
+    // บันทึกสำรองในเครื่องก่อนเสมอ ถ้าเน็ตหลุดข้อมูลจะไม่หาย
+    const localOk = upsertLocal(record);
+    try {
+      if (state.sheetUrl) {
+        const res = await sheetApi('save', { payload: JSON.stringify(record) });
+        await refreshHistory({ silent: true });
+        showToast('success', res.updated ? 'อัปเดตข้อมูลใน Google Sheets แล้ว' : 'บันทึกลง Google Sheets สำเร็จ', fmtThaiLong(d));
+      } else {
+        await wait(250);
+        if (!localOk) throw new Error('เบราว์เซอร์นี้ไม่อนุญาตให้บันทึกข้อมูล (อาจอยู่ในโหมดส่วนตัว)');
+        state.history = loadLocalHistory();
+        state.historySource = 'local';
+        renderHistory();
+        showToast('success', 'บันทึกข้อมูลในเครื่องสำเร็จ', `${fmtThaiLong(d)} (ตั้งค่า Google Sheets ได้ที่ปุ่มด้านบน)`);
+      }
+    } catch (err) {
+      console.error(err);
+      const detail = state.sheetUrl && localOk
+        ? `${err.message} (ข้อมูลถูกสำรองไว้ในเครื่องแล้ว กดบันทึกอีกครั้งเมื่อพร้อม)`
+        : (err.message || 'กรุณาลองใหม่อีกครั้ง');
+      showToast('error', 'บันทึกข้อมูลไม่สำเร็จ', detail);
+    } finally {
+      setBusy('save', false);
+    }
+  }
+
+  function handleLoad(date) {
+    const rec = state.history.find(r => r.date === date);
+    if (!rec) {
+      showToast('error', 'ไม่พบรายการนี้ในประวัติ', 'รายการอาจถูกลบไปแล้ว กรุณากดโหลดประวัติใหม่');
+      return;
+    }
+    state.data = { date: rec.date };
+    NUMERIC_FIELDS.forEach(k => { state.data[k] = rec[k]; });
+    state.touched.clear();
+    fillForm();
+    scheduleDraftSave();
+    renderAll();
+    showToast('info', 'เปิดข้อมูลจากประวัติแล้ว', fmtThaiLong(parseISODate(rec.date)));
+    if (window.innerWidth < 1024) $('#formCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function handleDelete(date, btn) {
+    const d = parseISODate(date);
+    const where = state.sheetUrl ? 'Google Sheets และในเครื่อง' : 'ประวัติในเครื่อง';
+    const ok = await confirmDialog({
+      title: 'ลบรายการนี้หรือไม่',
+      message: `ข้อมูล${d ? fmtThaiLong(d) : ''} จะถูกลบออกจาก${where} และกู้คืนไม่ได้`,
+      okText: 'ลบรายการ'
+    });
+    if (!ok) return;
+    if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
+    try {
+      if (state.sheetUrl) await sheetApi('delete', { date });
+      deleteLocal(date);
+      if (state.sheetUrl) await refreshHistory({ silent: true });
+      else { state.history = loadLocalHistory(); renderHistory(); }
+      showToast('success', 'ลบรายการแล้ว', d ? fmtThaiLong(d) : '');
+    } catch (err) {
+      console.error(err);
+      showToast('error', 'ลบรายการไม่สำเร็จ', err.message || 'กรุณาลองใหม่อีกครั้ง');
+      if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
+    }
+  }
+
+  function handleSample() {
+    state.data = getSampleData();
+    state.touched.clear();
+    fillForm();
+    scheduleDraftSave();
+    renderAll();
+    showToast('info', 'ใส่ข้อมูลตัวอย่างแล้ว', 'วันอังคารที่ 22 กันยายน 2569');
+  }
+
+  async function handleClear() {
+    const ok = await confirmDialog({
+      title: 'ล้างข้อมูลในฟอร์มหรือไม่',
+      message: 'ยอดทุกช่องจะถูกล้าง (วันที่ยังคงเดิม) ข้อมูลที่บันทึกไว้แล้วจะไม่ถูกลบ',
+      okText: 'ล้างข้อมูล'
+    });
+    if (!ok) return;
+    state.data = { date: state.data.date };
+    NUMERIC_FIELDS.forEach(k => { state.data[k] = null; });
+    state.touched.clear();
+    fillForm();
+    scheduleDraftSave();
+    renderAll();
+    $('#sbkPeople').focus();
+    showToast('success', 'ล้างข้อมูลในฟอร์มแล้ว', 'เริ่มกรอกยอดของวันใหม่ได้ทันที');
+  }
+
+  /** กดปุ่มวัน → เลื่อนวันที่ไปยังวันนั้นในสัปดาห์เดียวกัน (จันทร์–อาทิตย์) ให้วันที่กับวันตรงกันเสมอ */
+  function handleWeekday(targetDow) {
+    const base = parseISODate(state.data.date) || new Date();
+    const cur = (base.getDay() + 6) % 7;
+    const tgt = (targetDow + 6) % 7;
+    const next = new Date(base.getFullYear(), base.getMonth(), base.getDate() + (tgt - cur));
+    state.data.date = toISODate(next);
+    $('#reportDate').value = state.data.date;
+    state.touched.add('date');
+    scheduleDraftSave();
+    renderAll();
+  }
+
+  /* ================================================================
+     13) Settings: Google Sheets
+     ================================================================ */
+  function setSettingsStatus(type, text) {
+    const el = $('#settingsStatus');
+    if (!type) { el.className = 'settings-status'; el.innerHTML = ''; return; }
+    const icon = type === 'ok' ? 'fa-circle-check' : type === 'err' ? 'fa-circle-exclamation' : 'fa-circle-info';
+    el.className = `settings-status show ${type}`;
+    el.innerHTML = `<i class="fa-solid ${icon}"></i><div>${escapeHtml(text)}</div>`;
+  }
+
+  function openSettings() {
+    $('#sheetUrl').value = state.sheetUrl;
+    $('[data-field="sheetUrl"]').classList.remove('is-invalid');
+    setSettingsStatus(state.sheetUrl ? 'ok' : 'info', state.sheetUrl
+      ? 'เชื่อมต่อ Google Sheets อยู่ ข้อมูลที่บันทึกจะถูกส่งไปที่ชีตนี้'
+      : 'ตอนนี้ข้อมูลเก็บไว้เฉพาะในเบราว์เซอร์เครื่องนี้ เชื่อม Google Sheets เพื่อให้ทุกเครื่องเห็นข้อมูลชุดเดียวกัน');
+    $('[data-action="settings-disconnect"]').style.display = state.sheetUrl ? '' : 'none';
+    $('#settingsModal').classList.add('open');
+    setTimeout(() => $('#sheetUrl').focus(), 50);
+  }
+  function closeSettings() { $('#settingsModal').classList.remove('open'); }
+
+  async function handleSettingsSave() {
+    const url = $('#sheetUrl').value.trim();
+    const field = $('[data-field="sheetUrl"]');
+    if (!SHEET_URL_RE.test(url)) {
+      field.classList.add('is-invalid');
+      setSettingsStatus('err', 'รูปแบบ URL ไม่ถูกต้อง ให้คัดลอก "Web app URL" จากหน้าต่าง Deploy (ไม่ใช่ลิงก์ของชีตหรือหน้าแก้ไขโค้ด)');
+      return;
+    }
+    field.classList.remove('is-invalid');
+    setBusy('settings-save', true);
+    setSettingsStatus('info', 'กำลังทดสอบการเชื่อมต่อ...');
+    try {
+      const res = await sheetApi('ping', {}, url);
+      state.sheetUrl = url;
+      storageSet(STORAGE_KEYS.sheetUrl, url);
+      renderSyncState();
+      setSettingsStatus('ok', `เชื่อมต่อสำเร็จ: ชีต "${res.sheet}" มีข้อมูล ${nfInt.format(res.rows || 0)} รายการ`);
+      showToast('success', 'เชื่อมต่อ Google Sheets สำเร็จ', 'ข้อมูลที่กดบันทึกจากนี้จะถูกส่งไปที่ชีต');
+      await wait(700);
+      closeSettings();
+      refreshHistory({ silent: true });
+    } catch (err) {
+      console.error(err);
+      setSettingsStatus('err', err.message);
+    } finally {
+      setBusy('settings-save', false);
+    }
+  }
+
+  async function handleSettingsDisconnect() {
+    const ok = await confirmDialog({
+      title: 'ยกเลิกการเชื่อมต่อ Google Sheets',
+      message: 'ข้อมูลในชีตจะยังอยู่ครบ แต่แอปจะกลับไปบันทึกเฉพาะในเครื่องนี้',
+      okText: 'ยกเลิกการเชื่อมต่อ'
+    });
+    if (!ok) return;
+    state.sheetUrl = '';
+    storageRemove(STORAGE_KEYS.sheetUrl);
+    closeSettings();
+    renderSyncState();
+    refreshHistory();
+    showToast('info', 'ยกเลิกการเชื่อมต่อแล้ว', 'ข้อมูลจะบันทึกไว้ในเบราว์เซอร์เครื่องนี้');
+  }
+
+  /* ================================================================
+     14) Event handling
+     ================================================================ */
+  function onNumericInput(e) {
+    const el = e.target;
+    // จำตำแหน่ง cursor จากท้ายข้อความ เพราะ comma ที่เพิ่ม/ลดอยู่ด้านหน้า ทำให้นับจากหัวเลื่อน
+    const fromEnd = el.value.length - (el.selectionStart ?? el.value.length);
+    const digits = el.value.replace(/[^\d]/g, '').slice(0, MAX_DIGITS);
+    const formatted = digits === '' ? '' : nfInt.format(Number(digits));
+    el.value = formatted;
+    const pos = Math.max(0, formatted.length - fromEnd);
+    try { el.setSelectionRange(pos, pos); } catch (_) { /* บาง input type ไม่รองรับ */ }
+    state.data[el.name] = digits === '' ? null : Number(digits);
+    state.touched.add(el.name);
+    scheduleDraftSave();
+    scheduleRender();
+  }
+
+  function onDateChange(e) {
+    const el = e.target;
+    const d = parseISODate(el.value);
+    if (d && toISODate(d) !== el.value) el.value = toISODate(d); // พิมพ์ปี พ.ศ. มา → แปลงเป็น ค.ศ.
+    state.data.date = d ? toISODate(d) : '';
+    state.touched.add('date');
+    scheduleDraftSave();
+    scheduleRender();
+  }
+
+  function handleEvents() {
+    NUMERIC_FIELDS.forEach(k => {
+      const el = $('#' + k);
+      el.addEventListener('input', onNumericInput);
+      el.addEventListener('blur', () => { state.touched.add(k); renderValidation(); });
+      el.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        const next = NUMERIC_FIELDS[NUMERIC_FIELDS.indexOf(k) + 1];
+        if (next) $('#' + next).focus(); else el.blur();
+      });
+    });
+    $('#reportDate').addEventListener('change', onDateChange);
+    $('#reportDate').addEventListener('input', onDateChange);
+    $('#sheetUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); handleSettingsSave(); } });
+
+    $('#dowGroup').addEventListener('keydown', e => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      const d = parseISODate(state.data.date);
+      const i = DOW_ORDER.indexOf(d ? d.getDay() : 1);
+      const ni = (i + (e.key === 'ArrowRight' ? 1 : -1) + 7) % 7;
+      handleWeekday(DOW_ORDER[ni]);
+      requestAnimationFrame(() => { const b = $(`.dow-btn[data-dow="${DOW_ORDER[ni]}"]`); if (b) b.focus(); });
+    });
+
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn || btn.disabled) return;
+      switch (btn.dataset.action) {
+        case 'line': handleCopyLine(); break;
+        case 'png': handleExportPNG(); break;
+        case 'print': handlePrint(); break;
+        case 'save': handleSave(); break;
+        case 'sample': handleSample(); break;
+        case 'clear': handleClear(); break;
+        case 'load': handleLoad(btn.dataset.date); break;
+        case 'delete': handleDelete(btn.dataset.date, btn); break;
+        case 'dow': handleWeekday(Number(btn.dataset.dow)); break;
+        case 'theme': handleToggleTheme(); break;
+        case 'refresh': refreshHistory(); break;
+        case 'settings': openSettings(); break;
+        case 'settings-close': closeSettings(); break;
+        case 'settings-save': handleSettingsSave(); break;
+        case 'settings-disconnect': handleSettingsDisconnect(); break;
+      }
+    });
+
+    $('#settingsModal').addEventListener('click', e => { if (e.target.id === 'settingsModal') closeSettings(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && $('#settingsModal').classList.contains('open') && !$('#confirmModal').classList.contains('open')) closeSettings();
+    });
+
+    if ('ResizeObserver' in window) new ResizeObserver(fitPreview).observe($('#rptViewport'));
+    else window.addEventListener('resize', fitPreview);
+
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => renderReports());
+  }
+
+  function startClock() {
+    const tick = () => { const now = new Date(); $('#clock').textContent = `${fmtThaiShort(now)} ${fmtTime(now)} น.`; };
+    tick();
+    setInterval(tick, 15000);
+  }
+
+  /* ================================================================
+     15) Init
+     ================================================================ */
+  function init() {
+    applyTheme(currentTheme(), false);
+
+    const savedUrl = storageGet(STORAGE_KEYS.sheetUrl, '');
+    state.sheetUrl = typeof savedUrl === 'string' && SHEET_URL_RE.test(savedUrl) ? savedUrl : '';
+
+    // เปิดครั้งแรกใช้ข้อมูลตัวอย่าง / ครั้งถัดไปใช้ร่างล่าสุดที่ค้างไว้
+    const draft = sanitizeRecord(storageGet(STORAGE_KEYS.draft, null));
+    if (draft && (draft.date || NUMERIC_FIELDS.some(k => draft[k] !== null))) {
+      state.data = { date: draft.date };
+      NUMERIC_FIELDS.forEach(k => { state.data[k] = draft[k]; });
+    } else {
+      state.data = getSampleData();
+    }
+    state.history = loadLocalHistory();
+
+    fillForm();
+    handleEvents();
+    startClock();
+    renderAll();
+    if (state.sheetUrl) refreshHistory({ silent: true });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+
+  window.SDCSBK = { version: APP_VERSION, compare, fmtRatio, fmtPct, fmtSignedInt, buildLineText: () => buildLineText(buildModel()) };
+})();
+</script>
+</body>
+</html>
