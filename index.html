@@ -62,8 +62,13 @@
 </script>
 
 <!-- ============================================================
-     SDC vs SBK Daily Compare — v3
-     ไฟล์: SDC_SBK_Daily_Compare_v3.html  (คู่กับ Code_SDC_SBK_Daily_v3.gs)
+     SDC vs SBK Daily Compare — v4
+     ไฟล์: SDC_SBK_Daily_Compare_v4.html  (คู่กับ Code_SDC_SBK_Daily_v3.gs — ฝั่ง GAS ไม่เปลี่ยน)
+     v4 เปลี่ยนแปลง:
+       • แยก 2 โหมด: "ดูรายงาน" (ข้อมูลที่บันทึกแล้ว) และ "บันทึกข้อมูล" (ฟอร์ม)
+       • เปิดแอปแสดงวันล่าสุดที่มีข้อมูล + ปฏิทินเลือกวัน (จุดสี = มีข้อมูล) + ปุ่มเลื่อนวันก่อน/ถัดไป
+       • สรุปเป็นประโยค, ตารางเทียบวันเดียวกันสัปดาห์ก่อน, กราฟแนวโน้ม 14 ครั้งล่าสุด
+       • ป้ายบอกแหล่งข้อมูลของใบรายงาน (บันทึกแล้ว / ร่างจากฟอร์ม)
      v3 เปลี่ยนแปลง:
        • โลโก้แอป + ไอคอนเมื่อเพิ่มลงหน้าจอหลัก (มือถือ/คอมพิวเตอร์)
        • หน้าเปิดแอป (โลโก้ + วัน/เดือน/ปี : เวลา) เข้าแอปอัตโนมัติใน 3 วินาที
@@ -654,6 +659,9 @@
     border-top: 1px solid var(--line);
   }
 
+  /* จอมือถือ: ซ่อนนาฬิกาบนแถบบน ให้ชื่อแอปแสดงได้ครบ (.chip ตั้ง display เอง จึงทับคลาส hidden ของ Tailwind) */
+  @media (max-width: 767px) { #clockChip { display: none; } }
+
   @media (max-width: 639px) {
     #toastStack { left: 16px; right: 16px; width: auto; top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto; }
     .toast { transform: translateY(-14px); }
@@ -720,6 +728,80 @@
   [data-fit] { white-space: nowrap; overflow: hidden; }
   .rpt-tr > div:last-child { min-width: 0; flex: 1; }
   .fatal-box { position: fixed; left: 16px; right: 16px; top: 16px; z-index: 200; padding: 14px 16px; border-radius: 14px; background: #FFF1F2; color: #9F1239; border: 1px solid #FDA4AF; font-size: .9rem; line-height: 1.6; box-shadow: 0 10px 30px -10px rgba(0,0,0,.4); }
+
+  /* ============================================================
+     8.26) v4: Tabs / Navigator / Calendar / Compare / Trend
+     ============================================================ */
+  .is-hidden { display: none !important; }
+  .tabbar { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 5px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--glass-shadow); }
+  .tab-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 22px; border-radius: 12px; border: 0; background: transparent; color: var(--text-2); font-family: 'Prompt', sans-serif; font-weight: 600; font-size: .95rem; line-height: 1.3; cursor: pointer; transition: all .2s ease; white-space: nowrap; }
+  .tab-btn:hover { color: var(--heading); }
+  .tab-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .tab-btn[aria-selected="true"] { color: #041018; background: linear-gradient(100deg, #22D3EE, #8B5CF6); box-shadow: 0 8px 22px -10px rgba(34, 211, 238, .9); }
+  .tab-context { margin-top: 10px; font-size: .9rem; color: var(--text-2); line-height: 1.5; }
+  .tab-context b { color: var(--heading); font-weight: 600; }
+
+  .src-badge { display: inline-flex; align-items: center; gap: 6px; font-size: .76rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; line-height: 1.3; white-space: nowrap; border: 1px solid; }
+  .src-saved { color: var(--lime); border-color: rgba(var(--lime-rgb), .5); background: rgba(var(--lime-rgb), .08); }
+  .src-draft { color: #D97706; border-color: rgba(245, 158, 11, .55); background: rgba(245, 158, 11, .1); }
+  .src-none { color: var(--muted); border-color: var(--line-strong); background: var(--surface); }
+
+  .nav-date { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+  .nav-date-main { text-align: center; padding: 10px 12px; border-radius: 16px; border: 1.5px solid var(--day, var(--line-strong)); background: var(--surface); box-shadow: 0 0 22px -12px var(--day, transparent); min-width: 0; }
+  .nav-day { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: .95rem; color: var(--day, var(--muted)); line-height: 1.35; }
+  .nav-full { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 1.25rem; color: var(--heading); line-height: 1.35; }
+  .nav-tags { margin-top: 4px; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .icon-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+  .insight { padding: 12px 14px; border-radius: 14px; font-size: .92rem; line-height: 1.65; color: var(--text); background: linear-gradient(135deg, rgba(var(--cyan-rgb), .08), rgba(var(--purple-rgb), .08)); border: 1px solid var(--line); }
+  .insight b { font-family: 'Prompt', sans-serif; font-weight: 600; }
+  .insight .up { color: var(--lime); } .insight .down { color: var(--rose); }
+
+  .cal-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .cal-title { text-align: center; font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1rem; color: var(--heading); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .cal-wd { text-align: center; font-size: .74rem; font-weight: 600; color: var(--muted); padding: 2px 0; }
+  .cal-cell { position: relative; aspect-ratio: 1 / .86; border-radius: 10px; border: 1px solid transparent; background: transparent; color: var(--text-2); font-family: 'Prompt', sans-serif; font-weight: 500; font-size: .88rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s ease; }
+  .cal-cell:hover:not(:disabled) { border-color: rgba(var(--cyan-rgb), .5); color: var(--heading); }
+  .cal-cell:focus-visible { outline: 2px solid var(--cyan); outline-offset: 1px; }
+  .cal-cell.has-data { color: var(--heading); font-weight: 600; background: rgba(var(--cyan-rgb), .08); }
+  .cal-cell.has-data::after { content: ''; position: absolute; bottom: 5px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 6px rgba(var(--lime-rgb), .8); }
+  .cal-cell.is-pending::after { background: #F59E0B; box-shadow: 0 0 6px rgba(245, 158, 11, .8); }
+  .cal-cell.is-today { border-color: var(--line-strong); }
+  .cal-cell.is-selected { color: #041018; background: linear-gradient(135deg, #22D3EE, #8B5CF6); border-color: transparent; box-shadow: 0 6px 16px -8px rgba(34, 211, 238, .9); }
+  .cal-cell.is-selected::after { background: #fff; box-shadow: none; }
+  .cal-cell:disabled { opacity: .3; cursor: not-allowed; }
+  .cal-foot { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8rem; color: var(--muted); }
+  .cal-foot .lg-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+
+  .cmp-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+  .cmp-table th { font-weight: 600; color: var(--muted); font-size: .76rem; text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
+  .cmp-table th:first-child, .cmp-table td:first-child { text-align: left; }
+  .cmp-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; }
+  .cmp-table td:first-child { color: var(--text-2); white-space: normal; }
+  .cmp-table tr:last-child td { border-bottom: 0; }
+  .cmp-table .chg { font-family: 'Prompt', sans-serif; font-weight: 600; }
+  .cmp-table .sep td { padding-top: 12px; }
+
+  .trend-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .8rem; color: var(--text-2); }
+  .trend-legend i { display: inline-block; width: 18px; height: 3px; border-radius: 3px; margin-right: 6px; vertical-align: 3px; }
+  .trend-svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .trend-svg .grid { stroke: var(--line); stroke-width: 1; }
+  .trend-svg .axis-t { fill: var(--muted); font-size: 12px; font-family: 'Sarabun', sans-serif; }
+  .trend-svg .ref { stroke: var(--muted); stroke-dasharray: 4 4; stroke-width: 1; }
+  .trend-svg .guide { stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .trend-svg .ln { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .trend-svg .pt { stroke: var(--surface-hover); stroke-width: 2; cursor: pointer; }
+  .trend-svg .pt.sel { stroke-width: 3; }
+  .s1 { stroke: var(--cyan); fill: var(--cyan); } .s2 { stroke: var(--purple); fill: var(--purple); } .s3 { stroke: var(--lime); fill: var(--lime); }
+  .ln.s1, .ln.s2, .ln.s3 { fill: none; }
+  .trend-empty { padding: 26px 12px; text-align: center; color: var(--muted); font-size: .88rem; }
+
+  .rpt-empty { display: none; }
+  .rpt-viewport.is-empty { background: var(--surface); }
+  .rpt-viewport.is-empty .rpt-scaler { display: none; }
+  .rpt-viewport.is-empty .rpt-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 48px 20px; min-height: 360px; color: var(--text-2); }
+  .rpt-empty .big { font-size: 2.4rem; color: var(--faint); }
+  .rpt-empty h3 { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1.1rem; color: var(--heading); }
 
   /* ============================================================
      8.3) Splash / Idle screen
@@ -864,10 +946,51 @@
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-32 lg:pb-12 grid grid-cols-1 lg:grid-cols-12 gap-6">
+  <!-- ===================== แท็บเลือกโหมด ===================== -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-5">
+    <div class="tabbar" role="tablist" aria-label="เลือกหน้าจอ">
+      <button type="button" role="tab" class="tab-btn" id="tabView" data-action="tab" data-tab="view" aria-selected="true"><i class="fa-solid fa-chart-pie"></i><span>ดูรายงาน</span></button>
+      <button type="button" role="tab" class="tab-btn" id="tabEntry" data-action="tab" data-tab="entry" aria-selected="false"><i class="fa-solid fa-pen-to-square"></i><span>บันทึกข้อมูล</span></button>
+    </div>
+    <p class="tab-context" id="tabContext" aria-live="polite"></p>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-32 lg:pb-12 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[auto_1fr] items-start gap-6">
 
     <!-- ===================== LEFT: ฟอร์ม + ประวัติ ===================== -->
-    <section class="lg:col-span-5 space-y-6">
+    <section id="leftTop" class="lg:col-span-5 lg:col-start-1 lg:row-start-1 space-y-6 min-w-0">
+
+      <!-- ===== โหมดดูรายงาน: เลือกวันที่ ===== -->
+      <div class="glass" id="navCard" data-panel="view">
+        <div class="card-head">
+          <div class="card-icon"><i class="fa-solid fa-calendar-check"></i></div>
+          <div class="min-w-0">
+            <h2 class="card-title">เลือกวันที่ต้องการดู</h2>
+            <p class="card-sub">วันที่มีจุดสี = มีข้อมูลบันทึกแล้ว</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm ml-auto" data-action="view-latest" title="ไปวันล่าสุดที่มีข้อมูล"><i class="fa-solid fa-forward-fast btn-icon"></i><span>ล่าสุด</span></button>
+        </div>
+        <div class="p-5 space-y-4">
+          <div class="nav-date">
+            <button type="button" class="icon-btn" data-action="view-step" data-dir="-1" id="navPrev" aria-label="วันก่อนหน้าที่มีข้อมูล" title="วันก่อนหน้าที่มีข้อมูล (ลูกศรซ้าย)"><i class="fa-solid fa-chevron-left"></i></button>
+            <div class="nav-date-main" id="navDate"></div>
+            <button type="button" class="icon-btn" data-action="view-step" data-dir="1" id="navNext" aria-label="วันถัดไปที่มีข้อมูล" title="วันถัดไปที่มีข้อมูล (ลูกศรขวา)"><i class="fa-solid fa-chevron-right"></i></button>
+          </div>
+          <div class="insight" id="navInsight"></div>
+          <div>
+            <div class="cal-head">
+              <button type="button" class="icon-btn" data-action="cal-month" data-dir="-1" aria-label="เดือนก่อนหน้า"><i class="fa-solid fa-angle-left"></i></button>
+              <div class="cal-title" id="calTitle"></div>
+              <button type="button" class="icon-btn" data-action="cal-month" data-dir="1" id="calNext" aria-label="เดือนถัดไป"><i class="fa-solid fa-angle-right"></i></button>
+            </div>
+            <div class="cal-grid" id="calGrid" role="grid" aria-label="ปฏิทินเลือกวันที่"></div>
+            <div class="cal-foot" id="calFoot"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== โหมดบันทึกข้อมูล: ฟอร์ม ===== -->
+      <div data-panel="entry">
 
       <div class="glass" id="formCard">
         <div class="card-head">
@@ -986,28 +1109,11 @@
           </div>
         </div>
       </div>
-
-      <div class="glass">
-        <div class="card-head">
-          <div class="card-icon ic-lime"><i class="fa-solid fa-clock-rotate-left"></i></div>
-          <div class="min-w-0">
-            <h2 class="card-title">ประวัติที่บันทึกไว้</h2>
-            <p class="card-sub" id="historySource">เก็บไว้ในเบราว์เซอร์เครื่องนี้</p>
-          </div>
-          <a class="btn btn-ghost btn-sm ml-auto" id="openSheetBtn" href="#" target="_blank" rel="noopener" title="เปิด Google Sheets" aria-label="เปิด Google Sheets"><i class="fa-solid fa-table"></i></a>
-          <button type="button" class="btn btn-ghost btn-sm" data-action="refresh" title="โหลดประวัติใหม่" aria-label="โหลดประวัติใหม่">
-            <span class="btn-spinner"></span><i class="fa-solid fa-rotate btn-icon"></i>
-          </button>
-        </div>
-        <div class="p-4">
-          <div class="text-xs c-muted mb-2 px-1" id="historyCount"></div>
-          <div class="history-list space-y-2" id="historyList"></div>
-        </div>
       </div>
     </section>
 
     <!-- ===================== RIGHT: ผลคำนวณ + รายงาน ===================== -->
-    <section class="lg:col-span-7 space-y-6">
+    <section id="rightCol" class="lg:col-span-7 lg:col-start-6 lg:row-start-1 lg:row-span-2 space-y-6 min-w-0">
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="glass calc-card" id="calcPeople" aria-live="polite"></div>
@@ -1021,6 +1127,7 @@
             <h2 class="card-title">ใบรายงานสำหรับผู้บริหาร</h2>
             <p class="card-sub">ขนาด A4 แนวตั้ง ภาพตัวอย่างนี้ตรงกับไฟล์ที่ส่งออก</p>
           </div>
+          <span class="src-badge ml-auto" id="rptSource"></span>
         </div>
         <div class="p-4 sm:p-5 space-y-4">
           <div class="hidden lg:grid grid-cols-3 gap-2">
@@ -1036,6 +1143,7 @@
           </div>
           <div class="rpt-viewport" id="rptViewport">
             <div class="rpt-scaler" id="rptScaler"></div>
+            <div class="rpt-empty" id="rptEmpty"></div>
           </div>
           <div class="lg:hidden">
             <button type="button" class="btn btn-ghost w-full" data-action="print">
@@ -1058,6 +1166,59 @@
         </div>
         <div class="p-4 sm:p-5">
           <pre class="line-preview" id="linePreview"></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="leftBottom" class="lg:col-span-5 lg:col-start-1 lg:row-start-2 space-y-6 min-w-0">
+      <!-- ===== เทียบกับสัปดาห์ก่อน ===== -->
+      <div class="glass" id="cmpCard" data-panel="view">
+        <div class="card-head">
+          <div class="card-icon ic-purple"><i class="fa-solid fa-code-compare"></i></div>
+          <div class="min-w-0">
+            <h2 class="card-title">เทียบกับครั้งก่อน</h2>
+            <p class="card-sub" id="cmpSub">—</p>
+          </div>
+        </div>
+        <div class="p-4 sm:p-5 overflow-x-auto" id="cmpBody"></div>
+      </div>
+
+      <!-- ===== แนวโน้ม ===== -->
+      <div class="glass" id="trendCard" data-panel="view">
+        <div class="card-head flex-wrap">
+          <div class="card-icon ic-lime"><i class="fa-solid fa-chart-line"></i></div>
+          <div class="min-w-0">
+            <h2 class="card-title">แนวโน้ม 14 ครั้งล่าสุด</h2>
+            <p class="card-sub" id="trendSub">—</p>
+          </div>
+        </div>
+        <div class="p-4 sm:p-5 space-y-3">
+          <div class="seg" role="group" aria-label="เลือกข้อมูลกราฟ" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">
+            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="people" aria-pressed="true">ยอดคน</button>
+            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="cars" aria-pressed="false">ยอดรถ</button>
+            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="ratio" aria-pressed="false">อัตราส่วน</button>
+          </div>
+          <div class="trend-legend" id="trendLegend"></div>
+          <div id="trendChart"></div>
+          <p class="text-xs c-muted">แตะจุดบนกราฟเพื่อเปิดรายงานของวันนั้น</p>
+        </div>
+      </div>
+
+      <div class="glass" id="historyCard">
+        <div class="card-head">
+          <div class="card-icon ic-lime"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          <div class="min-w-0">
+            <h2 class="card-title">ประวัติที่บันทึกไว้</h2>
+            <p class="card-sub" id="historySource">เก็บไว้ในเบราว์เซอร์เครื่องนี้</p>
+          </div>
+          <a class="btn btn-ghost btn-sm ml-auto" id="openSheetBtn" href="#" target="_blank" rel="noopener" title="เปิด Google Sheets" aria-label="เปิด Google Sheets"><i class="fa-solid fa-table"></i></a>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="refresh" title="โหลดประวัติใหม่" aria-label="โหลดประวัติใหม่">
+            <span class="btn-spinner"></span><i class="fa-solid fa-rotate btn-icon"></i>
+          </button>
+        </div>
+        <div class="p-4">
+          <div class="text-xs c-muted mb-2 px-1" id="historyCount"></div>
+          <div class="history-list space-y-2" id="historyList"></div>
         </div>
       </div>
     </section>
@@ -1139,7 +1300,7 @@
   /* ================================================================
      1) ค่าคงที่ & ข้อมูลตัวอย่าง
      ================================================================ */
-  const APP_VERSION = 'v3';
+  const APP_VERSION = 'v4';
 
   /* Google Sheets ที่ฝังไว้ในโปรแกรม (ผู้ใช้ยังเปลี่ยน URL ได้จากหน้าตั้งค่า ถ้า Deploy ใหม่) */
   const DEFAULT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbypTdPh_wFU4Ou3GiekSN-pjHaJ42ftkE1EkRPMUmsD3Sb2kjFZ-QAalVOaonbhdhkg/exec';
@@ -1217,7 +1378,14 @@
     busy: new Set(),         // action ที่กำลังทำงาน (กันพักหน้าจอระหว่างส่งออก/บันทึก)
     historyReq: 0,           // เลขลำดับคำขอประวัติ กันผลลัพธ์เก่ามาทับผลใหม่
     syncing: false,
-    deferredToasts: []       // แจ้งเตือนที่เกิดระหว่างหน้าเปิดแอป/พักหน้าจอ (แสดงหลังเข้าแอป)
+    deferredToasts: [],      // แจ้งเตือนที่เกิดระหว่างหน้าเปิดแอป/พักหน้าจอ (แสดงหลังเข้าแอป)
+    // ---- v4: โหมดดูรายงาน ----
+    tab: 'view',             // 'view' = ดูข้อมูลที่บันทึกแล้ว, 'entry' = กรอก/แก้ไขข้อมูล
+    tabChosen: false,        // ผู้ใช้เลือกแท็บเองแล้ว → ระบบจะไม่สลับแท็บให้อัตโนมัติ
+    viewDate: '',            // วันที่ที่กำลังดูในโหมดดูรายงาน
+    viewPinned: false,       // ผู้ใช้เลือกวันเองแล้ว → โหลดประวัติใหม่จะไม่กระโดดไปวันล่าสุด
+    calMonth: null,          // เดือนที่ปฏิทินแสดง (วันที่ 1 ของเดือน)
+    trendMetric: 'people'
   };
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -1342,8 +1510,16 @@
     return { ready: true, ratio, diff, pct, trend };
   }
 
-  function buildModel() {
-    const d = state.data;
+  /** บันทึกของวันที่กำลังดู (โหมดดูรายงาน) */
+  const viewRecord = () => state.history.find(r => r.date === state.viewDate) || null;
+  const emptyRecord = date => { const o = { date }; NUMERIC_FIELDS.forEach(k => { o[k] = null; }); return o; };
+  /** ข้อมูลที่ใบรายงาน/ข้อความ LINE/การ์ดคำนวณใช้อยู่: โหมดดู = ข้อมูลที่บันทึกแล้ว, โหมดบันทึก = ตัวเลขในฟอร์ม */
+  const activeData = () => (state.tab === 'view' ? (viewRecord() || emptyRecord(state.viewDate)) : state.data);
+  /** วันที่ทั้งหมดที่มีข้อมูล เรียงจากเก่าไปใหม่ */
+  const dataDates = () => Array.from(new Set(state.history.map(r => r.date))).sort();
+  const latestDate = () => { const d = dataDates(); return d.length ? d[d.length - 1] : ''; };
+
+  function buildModel(d = activeData()) {
     return {
       dateObj: parseISODate(d.date),
       people: { sbk: d.sbkPeople, sdc: d.sdcPeople, cmp: compare(d.sbkPeople, d.sdcPeople) },
@@ -1477,7 +1653,7 @@
       <div class="calc-formula">${formula}</div>
       <div class="calc-stats">
         <div class="calc-stat"><span>ผลต่าง (SDC − SBK)</span><strong class="${t.cls}" data-fit="11">${fmtSignedInt(cmp.diff)} ${cmp.ready ? unit : ''}</strong></div>
-        <div class="calc-stat" title="${escapeHtml(pctNote(block))}"><span>${pctLabel(cmp)} (%)</span><strong class="${t.cls}" data-fit="11">${fmtPct(cmp.pct)}</strong></div>
+        <div class="calc-stat" title="${escapeHtml(pctNote(block))}"><span>${pctLabel(cmp)} (%)</span><strong class="${t.cls}" data-fit="11">${escapeHtml(fmtPct(cmp.pct))}</strong></div>
       </div>
       <div class="calc-bars">
         <div class="calc-bar-row"><span class="tag" style="color:var(--cyan)">SBK</span><div class="calc-track"><div class="calc-fill fill-sbk" style="width:${w.sbk}%"></div></div><span class="val">${fmtInt(sbk)}</span></div>
@@ -1523,7 +1699,7 @@
           </div>
           <div class="rpt-metric">
             <div class="rpt-metric-label" data-fit="10">${pctLabel(cmp)} (%)</div>
-            <div class="rpt-metric-val ${t.cls}" data-fit="13">${fmtPct(cmp.pct)}</div>
+            <div class="rpt-metric-val ${t.cls}" data-fit="13">${escapeHtml(fmtPct(cmp.pct))}</div>
             <div class="rpt-metric-note" data-fit="9">${pctNote(block)}</div>
           </div>
         </div>
@@ -1627,17 +1803,315 @@
   }
 
   function renderAll() {
-    const m = buildModel();
+    const m = buildModel();                 // สิ่งที่แสดงผล/ส่งออก (ตามแท็บ)
+    const f = buildModel(state.data);       // ฟอร์ม (ใช้กับส่วนกรอกข้อมูลเท่านั้น)
+    renderTabs();
     renderDateMode();
-    renderDateMeta(m);
-    renderWeekdays(m);
+    renderDateMeta(f);
+    renderWeekdays(f);
     renderValidation();
     renderWarnings();
     renderCalc(m);
     renderReports(m);
     renderLinePreview(m);
+    renderSource();
+    if (state.tab === 'view') { renderNavigator(); renderCompare(); renderTrend(); }
     renderHistory();
     renderSyncState();
+  }
+
+  /* ================================================================
+     6.1) v4 — โหมดดูรายงาน
+     ================================================================ */
+  function renderTabs() {
+    $$('[data-action="tab"]').forEach(b => {
+      const on = b.dataset.tab === state.tab;
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
+    });
+    $$('[data-panel]').forEach(el => el.classList.toggle('is-hidden', el.dataset.panel !== state.tab));
+    const ctx = $('#tabContext');
+    if (state.tab === 'view') {
+      const d = parseISODate(state.viewDate);
+      const latest = latestDate();
+      if (!latest) ctx.innerHTML = 'ยังไม่มีข้อมูลที่บันทึกไว้ ไปที่แท็บ <b>บันทึกข้อมูล</b> เพื่อเริ่มกรอกยอดวันแรก';
+      else ctx.innerHTML = `กำลังดูข้อมูลที่บันทึกแล้วของ <b>${escapeHtml(d ? fmtThaiLong(d) : '—')}</b>${state.viewDate === latest ? ' (วันล่าสุดที่มีข้อมูล)' : ''}`;
+    } else {
+      const d = parseISODate(state.data.date);
+      ctx.innerHTML = `กำลังกรอกยอดของ <b>${escapeHtml(d ? fmtThaiLong(d) : 'วันที่ยังไม่ระบุ')}</b> ใบรายงานด้านขวาแสดงตามตัวเลขในฟอร์ม`;
+    }
+  }
+
+  /** ป้ายบอกว่าใบรายงานมาจากข้อมูลไหน — กันส่งตัวเลขร่างที่ยังไม่บันทึกโดยไม่รู้ตัว */
+  function renderSource() {
+    const el = $('#rptSource');
+    if (state.tab === 'view') {
+      const r = viewRecord();
+      if (!r) { el.className = 'src-badge ml-auto src-none'; el.innerHTML = '<i class="fa-regular fa-circle"></i>ไม่มีข้อมูล'; return; }
+      el.className = 'src-badge ml-auto ' + (r.pending ? 'src-draft' : 'src-saved');
+      el.innerHTML = r.pending ? '<i class="fa-solid fa-cloud-arrow-up"></i>บันทึกในเครื่อง รอส่ง' : '<i class="fa-solid fa-circle-check"></i>ข้อมูลที่บันทึกแล้ว';
+      return;
+    }
+    const saved = findRecord(state.data.date);
+    if (saved && sameNumbers(saved, state.data)) {
+      el.className = 'src-badge ml-auto src-saved'; el.innerHTML = '<i class="fa-solid fa-circle-check"></i>ตรงกับข้อมูลที่บันทึกแล้ว';
+    } else {
+      el.className = 'src-badge ml-auto src-draft'; el.innerHTML = '<i class="fa-solid fa-pen"></i>ร่างจากฟอร์ม ยังไม่บันทึก';
+    }
+  }
+
+  /** สรุปเป็นประโยคให้อ่านเข้าใจในครั้งเดียว */
+  function insightText(r) {
+    const part = (label, unit, sbk, sdc) => {
+      const c = compare(sbk, sdc);
+      if (!c.ready) return '';
+      if (c.trend === 'flat') return `${label}<b>เท่ากัน</b> (${fmtInt(sbk)} ${unit})`;
+      const cls = c.trend === 'up' ? 'up' : 'down';
+      const word = c.trend === 'up' ? 'มากกว่า' : 'น้อยกว่า';
+      // fmtPct อาจคืน "<0.1%" จึงต้อง escape ก่อนใส่ใน HTML
+      const pct = c.pct === null ? '' : ` <b class="${cls}">${escapeHtml(fmtPct(Math.abs(c.pct)).replace(/^\+/, ''))}</b>`;
+      return `${label}${word} SBK${pct} (${fmtSignedInt(c.diff)} ${unit})`;
+    };
+    const a = part('SDC มีคนเข้า', 'คน', r.sbkPeople, r.sdcPeople);
+    const b = part('รถ', 'คัน', r.sbkCars, r.sdcCars);
+    return `<i class="fa-solid fa-lightbulb" style="color:#F59E0B;margin-right:6px"></i>${a}${b ? ' และ' + b : ''} ส่วน MRT ${fmtInt(r.mrt)} คน, EBM ${fmtInt(r.ebm)} คน`;
+  }
+
+  function renderNavigator() {
+    const d = parseISODate(state.viewDate);
+    const r = viewRecord();
+    const dates = dataDates();
+    const latest = latestDate();
+    const box = $('#navDate');
+    if (d) box.style.setProperty('--day', dayColor(DAYS[d.getDay()])); else box.style.removeProperty('--day');
+    const tags = [];
+    if (state.viewDate && state.viewDate === latest) tags.push('<span class="saved-badge" style="margin:0"><i class="fa-solid fa-star"></i>ล่าสุด</span>');
+    if (state.viewDate === todayISO()) tags.push('<span class="mode-badge" style="margin:0">วันนี้</span>');
+    if (!r) tags.push('<span class="src-badge src-none">ไม่มีข้อมูล</span>');
+    box.innerHTML = d
+      ? `<div class="nav-day">วัน${DAYS[d.getDay()].th}</div><div class="nav-full">${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${beYear(d)}</div><div class="nav-tags">${tags.join('')}</div>`
+      : '<div class="nav-full">—</div>';
+    $('#navPrev').disabled = !dates.some(x => x < state.viewDate);
+    $('#navNext').disabled = !dates.some(x => x > state.viewDate);
+    const ins = $('#navInsight');
+    if (r) { ins.innerHTML = insightText(r); ins.classList.remove('is-hidden'); }
+    else if (state.historyLoading) { ins.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลจาก Google Sheets...'; ins.classList.remove('is-hidden'); }
+    else ins.classList.add('is-hidden');
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    const cm = state.calMonth || new Date();
+    const y = cm.getFullYear(), mo = cm.getMonth();
+    const now = new Date();
+    const todayKey = dayKey(now);
+    const has = new Set(dataDates());
+    const pending = new Set(state.history.filter(r => r.pending).map(r => r.date));
+    $('#calTitle').textContent = `${THAI_MONTHS[mo]} ${y + 543}`;
+    $('#calNext').disabled = y * 12 + mo >= now.getFullYear() * 12 + now.getMonth(); // ห้ามไปเดือนอนาคต
+    const offset = (new Date(y, mo, 1).getDay() + 6) % 7; // จันทร์เป็นวันแรกของสัปดาห์
+    const days = new Date(y, mo + 1, 0).getDate();
+    const cells = ['จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา'].map(w => `<div class="cal-wd">${w}</div>`);
+    for (let i = 0; i < offset; i++) cells.push('<div></div>');
+    let count = 0;
+    for (let dd = 1; dd <= days; dd++) {
+      const dt = new Date(y, mo, dd);
+      const iso = toISODate(dt);
+      const future = dayKey(dt) > todayKey;
+      const hasData = has.has(iso);
+      if (hasData) count++;
+      const cls = ['cal-cell', hasData && 'has-data', pending.has(iso) && 'is-pending', dayKey(dt) === todayKey && 'is-today', iso === state.viewDate && 'is-selected'].filter(Boolean).join(' ');
+      const label = `${fmtThaiLong(dt)} ${hasData ? 'มีข้อมูล' : 'ไม่มีข้อมูล'}`;
+      cells.push(`<button type="button" class="${cls}" data-action="view-date" data-date="${iso}" ${future ? 'disabled' : ''} aria-label="${label}" aria-pressed="${iso === state.viewDate}" title="${label}">${dd}</button>`);
+    }
+    $('#calGrid').innerHTML = cells.join('');
+    const lastDay = (y === now.getFullYear() && mo === now.getMonth()) ? now.getDate() : (y * 12 + mo > now.getFullYear() * 12 + now.getMonth() ? 0 : days);
+    $('#calFoot').innerHTML = `<span><span class="lg-dot" style="background:var(--lime)"></span>มีข้อมูล ${count} จาก ${lastDay} วัน</span>`
+      + (pending.size ? '<span><span class="lg-dot" style="background:#F59E0B"></span>รอส่งขึ้น Google Sheets</span>' : '')
+      + (lastDay > count ? `<span>ขาดข้อมูล ${lastDay - count} วัน</span>` : '');
+  }
+
+  /** ข้อมูลสำหรับเทียบ: วันเดียวกันของสัปดาห์ก่อน ถ้าไม่มีใช้ข้อมูลครั้งก่อนหน้าที่ใกล้ที่สุด */
+  function compareBase(date) {
+    const d = parseISODate(date);
+    if (!d) return null;
+    const weekAgo = toISODate(new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7));
+    const w = state.history.find(r => r.date === weekAgo);
+    if (w) return { rec: w, title: `เทียบกับวัน${DAYS[d.getDay()].th}ที่แล้ว (${fmtThaiShort(parseISODate(weekAgo))})` };
+    const prev = dataDates().filter(x => x < date).pop();
+    if (prev) { const pd = parseISODate(prev); return { rec: state.history.find(r => r.date === prev), title: `เทียบกับข้อมูลครั้งก่อน วัน${DAYS[pd.getDay()].th}ที่ ${fmtThaiShort(pd)} (ยังไม่มีข้อมูลวันเดียวกันของสัปดาห์ก่อน)` }; }
+    return null;
+  }
+
+  function renderCompare() {
+    const r = viewRecord();
+    const base = r ? compareBase(r.date) : null;
+    $('#cmpSub').textContent = base ? base.title : (r ? 'ยังไม่มีข้อมูลก่อนหน้าให้เปรียบเทียบ' : 'เลือกวันที่มีข้อมูลเพื่อดูการเปรียบเทียบ');
+    if (!r || !base) { $('#cmpBody').innerHTML = `<div class="trend-empty"><i class="fa-regular fa-calendar-xmark"></i> ${r ? 'บันทึกข้อมูลวันอื่นเพิ่ม เพื่อดูการเปลี่ยนแปลง' : 'ไม่มีข้อมูลของวันที่เลือก'}</div>`; return; }
+    const p = base.rec;
+    const chg = (cur, prev) => {
+      if (cur === null || prev === null) return '<span class="c-muted">—</span>';
+      if (prev === 0) return cur === 0 ? '<span class="c-muted">0.0%</span>' : '<span class="c-muted">ใหม่</span>';
+      const pct = (cur - prev) / prev * 100;
+      const cls = pct > 0 ? 't-up' : pct < 0 ? 't-down' : 't-flat';
+      const icon = pct > 0 ? 'fa-caret-up' : pct < 0 ? 'fa-caret-down' : 'fa-minus';
+      return `<span class="chg ${cls}"><i class="fa-solid ${icon}"></i> ${escapeHtml(fmtPct(pct))}</span>`;
+    };
+    const ratioChg = (cur, prev) => {
+      if (cur === null || prev === null) return '<span class="c-muted">—</span>';
+      const diff = roundTo(cur, 2) - roundTo(prev, 2);
+      const v = roundTo(diff, 2);
+      const cls = v > 0 ? 't-up' : v < 0 ? 't-down' : 't-flat';
+      return `<span class="chg ${cls}">${v > 0 ? '+' : v < 0 ? '-' : ''}${nf2.format(Math.abs(v))}</span>`;
+    };
+    const rows = [['ยอดคน SBK', 'sbkPeople'], ['ยอดคน SDC', 'sdcPeople'], ['ยอดรถ SBK', 'sbkCars'], ['ยอดรถ SDC', 'sdcCars'], ['MRT', 'mrt'], ['EBM', 'ebm']]
+      .map(([label, k]) => `<tr><td>${label}</td><td>${fmtInt(r[k])}</td><td>${fmtInt(p[k])}</td><td>${chg(r[k], p[k])}</td></tr>`).join('');
+    const rc = compare(r.sbkPeople, r.sdcPeople).ratio, pc = compare(p.sbkPeople, p.sdcPeople).ratio;
+    const rcc = compare(r.sbkCars, r.sdcCars).ratio, pcc = compare(p.sbkCars, p.sdcCars).ratio;
+    const pd = parseISODate(p.date);
+    $('#cmpBody').innerHTML = `
+      <table class="cmp-table">
+        <thead><tr><th>รายการ</th><th>${fmtThaiShort(parseISODate(r.date))}</th><th>${fmtThaiShort(pd)}</th><th>เปลี่ยนแปลง</th></tr></thead>
+        <tbody>${rows}
+          <tr class="sep"><td>อัตราส่วนคน (SDC÷SBK)</td><td>${fmtRatio(rc)}</td><td>${fmtRatio(pc)}</td><td>${ratioChg(rc, pc)}</td></tr>
+          <tr><td>อัตราส่วนรถ (SDC÷SBK)</td><td>${fmtRatio(rcc)}</td><td>${fmtRatio(pcc)}</td><td>${ratioChg(rcc, pcc)}</td></tr>
+        </tbody>
+      </table>`;
+  }
+
+  /** ช่วงตัวเลขแกน Y แบบปัดเป็นเลขกลม ๆ อ่านง่าย */
+  function niceScale(min, max, count = 4) {
+    if (min === max) { const pad = Math.abs(min) * 0.1 || 1; min -= pad; max += pad; }
+    const raw = (max - min) / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= raw) || raw;
+    const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step;
+    const ticks = [];
+    for (let v = lo; v <= hi + step / 2; v += step) ticks.push(roundTo(v, 6));
+    return { lo, hi, ticks };
+  }
+  const fmtAxis = (v, ratio) => ratio ? nf2.format(v) : (Math.abs(v) >= 1000 ? `${roundTo(v / 1000, 1)}K` : String(v));
+
+  function renderTrend() {
+    const metric = state.trendMetric;
+    $$('[data-action="trend-metric"]').forEach(b => b.setAttribute('aria-pressed', b.dataset.metric === metric ? 'true' : 'false'));
+    const upto = state.viewDate || latestDate();
+    const recs = state.history.filter(r => r.date <= upto).sort((a, b) => a.date.localeCompare(b.date)).slice(-14);
+    const series = metric === 'ratio'
+      ? [{ cls: 's1', name: 'อัตราส่วนยอดคน', get: r => compare(r.sbkPeople, r.sdcPeople).ratio }, { cls: 's3', name: 'อัตราส่วนยอดรถ', get: r => compare(r.sbkCars, r.sdcCars).ratio }]
+      : [{ cls: 's1', name: `SBK ${metric === 'people' ? 'ยอดคน' : 'ยอดรถ'}`, get: r => r[metric === 'people' ? 'sbkPeople' : 'sbkCars'] },
+         { cls: 's2', name: `SDC ${metric === 'people' ? 'ยอดคน' : 'ยอดรถ'}`, get: r => r[metric === 'people' ? 'sdcPeople' : 'sdcCars'] }];
+    $('#trendLegend').innerHTML = series.map(s => `<span><i class="${s.cls}" style="background:currentColor;color:var(${s.cls === 's1' ? '--cyan' : s.cls === 's2' ? '--purple' : '--lime'})"></i>${s.name}</span>`).join('')
+      + (metric === 'ratio' ? '<span><i style="background:var(--muted)"></i>1.00 = เท่ากัน</span>' : '');
+    if (!recs.length) { $('#trendSub').textContent = 'ยังไม่มีข้อมูล'; $('#trendChart').innerHTML = '<div class="trend-empty">ยังไม่มีข้อมูลสำหรับแสดงกราฟ</div>'; return; }
+    const first = parseISODate(recs[0].date), last = parseISODate(recs[recs.length - 1].date);
+    $('#trendSub').textContent = `${recs.length} ครั้ง ตั้งแต่ ${fmtThaiShort(first)} ถึง ${fmtThaiShort(last)}`;
+
+    const W = 600, H = 250, L = 52, R = 16, T = 14, B = 36;
+    const vals = [];
+    recs.forEach(r => series.forEach(s => { const v = s.get(r); if (v !== null && Number.isFinite(v)) vals.push(v); }));
+    if (!vals.length) { $('#trendChart').innerHTML = '<div class="trend-empty">ข้อมูลไม่พอสำหรับกราฟนี้</div>'; return; }
+    let min = Math.min(...vals), max = Math.max(...vals);
+    if (metric === 'ratio') { min = Math.min(min, 1); max = Math.max(max, 1); } else { min = 0; } // ยอดเริ่มที่ 0 เพื่อไม่ให้กราฟขยายความต่างเกินจริง
+    const sc = niceScale(min, max);
+    const x = i => recs.length === 1 ? L + (W - L - R) / 2 : L + i * (W - L - R) / (recs.length - 1);
+    const y = v => T + (H - T - B) * (1 - (v - sc.lo) / (sc.hi - sc.lo || 1));
+    const out = [];
+    sc.ticks.forEach(t => out.push(`<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"/><text class="axis-t" x="${L - 8}" y="${y(t) + 4}" text-anchor="end">${fmtAxis(t, metric === 'ratio')}</text>`));
+    if (metric === 'ratio') out.push(`<line class="ref" x1="${L}" x2="${W - R}" y1="${y(1)}" y2="${y(1)}"/>`);
+    const selIdx = recs.findIndex(r => r.date === state.viewDate);
+    if (selIdx >= 0) out.push(`<line class="guide" x1="${x(selIdx)}" x2="${x(selIdx)}" y1="${T}" y2="${H - B}"/>`);
+    const every = recs.length > 8 ? 2 : 1;
+    recs.forEach((r, i) => {
+      if ((recs.length - 1 - i) % every !== 0 && i !== selIdx) return; // ป้ายวันที่เว้นระยะไม่ให้ทับกัน แต่แสดงวันที่เลือกเสมอ
+      const d = parseISODate(r.date);
+      out.push(`<text class="axis-t" x="${x(i)}" y="${H - B + 18}" text-anchor="middle" style="${i === selIdx ? 'font-weight:700;fill:var(--heading)' : ''}">${d.getDate()}/${d.getMonth() + 1}</text>`);
+    });
+    series.forEach(s => {
+      // เส้นขาดเมื่อมีค่าว่าง (เช่น SBK = 0 ทำให้อัตราส่วนคำนวณไม่ได้) แทนการลากเส้นข้ามไปแบบผิดความหมาย
+      let path = '', pen = false;
+      recs.forEach((r, i) => { const v = s.get(r); if (v === null || !Number.isFinite(v)) { pen = false; return; } path += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)} `; pen = true; });
+      out.push(`<path class="ln ${s.cls}" d="${path.trim()}"/>`);
+      recs.forEach((r, i) => {
+        const v = s.get(r);
+        if (v === null || !Number.isFinite(v)) return;
+        const d = parseISODate(r.date);
+        const label = `${s.name} ${fmtThaiShort(d)}: ${metric === 'ratio' ? fmtRatio(v) + ' เท่า' : fmtInt(v)}`;
+        out.push(`<circle class="pt ${s.cls} ${i === selIdx ? 'sel' : ''}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${i === selIdx ? 6.5 : 4.5}" data-action="view-date" data-date="${r.date}" tabindex="0" role="button" aria-label="${label}"><title>${label}</title></circle>`);
+      });
+    });
+    $('#trendChart').innerHTML = `<svg class="trend-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟแนวโน้ม">${out.join('')}</svg>`
+      + (recs.length < 2 ? '<p class="text-xs c-muted mt-2">ต้องมีข้อมูลอย่างน้อย 2 วันจึงจะเห็นเป็นเส้นแนวโน้ม</p>' : '');
+  }
+
+  function emptyReportTemplate() {
+    const d = parseISODate(state.viewDate);
+    const latest = latestDate();
+    if (state.historyLoading && !state.history.length) {
+      return '<i class="fa-solid fa-spinner fa-spin big"></i><h3>กำลังโหลดข้อมูล...</h3><p>ดึงข้อมูลล่าสุดจาก Google Sheets</p>';
+    }
+    return `<i class="fa-regular fa-calendar-xmark big"></i>
+      <h3>ไม่มีข้อมูลของ${d ? escapeHtml(fmtThaiLong(d)) : 'วันที่เลือก'}</h3>
+      <p>เลือกวันที่มีจุดสีในปฏิทิน หรือกรอกข้อมูลของวันนี้</p>
+      <div class="flex flex-wrap gap-2 justify-center mt-2">
+        ${latest ? `<button type="button" class="btn btn-primary" data-action="view-latest"><i class="fa-solid fa-forward-fast btn-icon"></i><span>ไปวันล่าสุดที่มีข้อมูล (${escapeHtml(fmtThaiShort(parseISODate(latest)))})</span></button>` : ''}
+        <button type="button" class="btn btn-lime" data-action="entry-for-date"><i class="fa-solid fa-pen-to-square btn-icon"></i><span>${state.viewDate === todayISO() ? 'กรอกข้อมูลของวันนี้' : 'กรอกข้อมูลของวันที่นี้'}</span></button>
+      </div>`;
+  }
+
+  /* ---- การนำทาง ---- */
+  function setTab(tab, { user = false } = {}) {
+    state.tab = tab === 'entry' ? 'entry' : 'view';
+    if (user) state.tabChosen = true;
+    renderAll();
+    if (user && window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function selectViewDate(date, { pin = true } = {}) {
+    const d = parseISODate(date);
+    if (!d || dayKey(d) > dayKey(new Date())) return;
+    state.viewDate = toISODate(d);
+    if (pin) state.viewPinned = true;
+    state.calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+    if (state.tab !== 'view') state.tab = 'view';
+    renderAll();
+  }
+
+  function stepView(dir) {
+    const dates = dataDates();
+    const target = dir < 0 ? dates.filter(x => x < state.viewDate).pop() : dates.find(x => x > state.viewDate);
+    if (target) selectViewDate(target);
+  }
+
+  function goLatest() {
+    const latest = latestDate();
+    if (!latest) { showToast('info', 'ยังไม่มีข้อมูลที่บันทึกไว้', 'เริ่มกรอกยอดได้ที่แท็บ "บันทึกข้อมูล"'); return; }
+    state.viewPinned = false;
+    selectViewDate(latest, { pin: false });
+  }
+
+  function shiftCalMonth(dir) {
+    const cm = state.calMonth || new Date();
+    const next = new Date(cm.getFullYear(), cm.getMonth() + dir, 1);
+    const now = new Date();
+    if (next.getFullYear() * 12 + next.getMonth() > now.getFullYear() * 12 + now.getMonth()) return;
+    state.calMonth = next;
+    renderCalendar();
+  }
+
+  /** จากหน้าดูรายงานวันที่ไม่มีข้อมูล → ไปกรอกข้อมูลวันนั้นทันที */
+  async function handleEntryForDate() {
+    const date = state.viewDate || todayISO();
+    if (!(await confirmDiscard('เริ่มกรอกข้อมูลวันใหม่'))) return;
+    setDateMode(date === todayISO() ? 'auto' : 'manual', { silent: true });
+    state.data = emptyRecord(date);
+    state.dirty = false;
+    state.ackSig = '';
+    state.touched.clear();
+    fillForm();
+    scheduleDraftSave();
+    setTab('entry', { user: true });
+    setTimeout(() => $('#sbkPeople').focus(), 80);
   }
 
   function renderDateMeta(m) {
@@ -1717,6 +2191,17 @@
   }
 
   function renderReports(m = buildModel()) {
+    const vp = $('#rptViewport');
+    const empty = state.tab === 'view' && !viewRecord();
+    vp.classList.toggle('is-empty', empty);
+    if (empty) {
+      // ไม่มีข้อมูลของวันที่เลือก: แสดงคำแนะนำแทนใบรายงานที่เต็มไปด้วย "—"
+      $('#rptScaler').innerHTML = '';
+      $('#exportStage').innerHTML = '';
+      $('#rptEmpty').innerHTML = emptyReportTemplate();
+      vp.style.height = '';
+      return;
+    }
     const html = reportTemplate(m);
     $('#rptScaler').innerHTML = html;
     $('#exportStage').innerHTML = html;
@@ -1734,6 +2219,7 @@
   /** ย่อใบรายงาน 794px ให้พอดีกล่องแสดงผล (ทั้งมือถือและจอใหญ่) */
   function fitPreview() {
     const vp = $('#rptViewport');
+    if (vp.classList.contains('is-empty')) return;
     const sc = $('#rptScaler');
     const w = vp.clientWidth;
     if (!w) return;
@@ -1776,7 +2262,7 @@
       const day = DAYS[d.getDay()];
       const p = compare(r.sbkPeople, r.sdcPeople);
       const c = compare(r.sbkCars, r.sdcCars);
-      const isCurrent = r.date === state.data.date;
+      const isCurrent = r.date === (state.tab === 'view' ? state.viewDate : state.data.date);
       return `
         <div class="history-item ${isCurrent ? 'is-current' : ''}" style="--day:${dayColor(day)}">
           <div class="history-day"><b>${d.getDate()}</b><span>${THAI_MONTHS_SHORT[d.getMonth()]}</span></div>
@@ -1784,7 +2270,8 @@
             <div class="text-sm font-display font-semibold truncate c-heading">${escapeHtml(fmtThaiShort(d))} <span style="color:var(--day);font-weight:500">(${day.th})</span>${r.pending ? ' <span class="tag-pending" title="บันทึกในเครื่องแล้ว รอส่งขึ้น Google Sheets"><i class="fa-solid fa-cloud-arrow-up"></i>รอส่ง</span>' : ''}</div>
             <div class="text-xs truncate c-muted">คน ${fmtInt(r.sbkPeople)} / ${fmtInt(r.sdcPeople)} (${fmtRatio(p.ratio)} เท่า), รถ ${fmtInt(r.sbkCars)} / ${fmtInt(r.sdcCars)} (${fmtRatio(c.ratio)} เท่า)</div>
           </div>
-          <button type="button" class="btn btn-ghost btn-sm" data-action="load" data-date="${r.date}" title="เปิดข้อมูลวันนี้" aria-label="เปิดข้อมูล ${escapeHtml(fmtThaiShort(d))}"><i class="fa-regular fa-folder-open"></i></button>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="view-date" data-date="${r.date}" title="ดูรายงานวันนี้" aria-label="ดูรายงาน ${escapeHtml(fmtThaiShort(d))}"><i class="fa-regular fa-eye"></i></button>
+          <button type="button" class="btn btn-ghost btn-sm" data-action="load" data-date="${r.date}" title="แก้ไขข้อมูลวันนี้" aria-label="แก้ไขข้อมูล ${escapeHtml(fmtThaiShort(d))}"><i class="fa-solid fa-pen"></i></button>
           <button type="button" class="btn btn-danger-ghost btn-sm" data-action="delete" data-date="${r.date}" title="ลบรายการ" aria-label="ลบข้อมูล ${escapeHtml(fmtThaiShort(d))}"><span class="btn-spinner"></span><i class="fa-regular fa-trash-can btn-icon"></i></button>
         </div>`;
     }).join('');
@@ -1935,12 +2422,27 @@
     return Array.from(map.values());
   }
 
+  /**
+   * หลังข้อมูลประวัติเปลี่ยน: ถ้าผู้ใช้ยังไม่ได้เลือกวันเอง ให้แสดง "วันล่าสุดที่มีข้อมูล"
+   * และถ้ายังไม่ได้เลือกแท็บเอง + ไม่มีงานค้างในฟอร์ม ให้เปิดหน้า "ดูรายงาน" เมื่อมีข้อมูล
+   */
+  function applyAutoView() {
+    const latest = latestDate();
+    if (!state.viewPinned || !state.viewDate) {
+      state.viewDate = latest || todayISO();
+      const d = parseISODate(state.viewDate);
+      state.calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+    }
+    if (!state.tabChosen && !state.dirty) state.tab = latest ? 'view' : 'entry';
+  }
+
   /** โหลดประวัติ: เชื่อม Sheets แล้วดึงจาก Sheets (ข้อมูลกลางของทุกเครื่อง) ถ้าล้มเหลวใช้ข้อมูลสำรองในเครื่อง */
   async function refreshHistory({ silent = false } = {}) {
     const req = ++state.historyReq;
     if (!state.sheetUrl) {
       state.history = loadLocalHistory();
       state.historySource = 'local';
+      applyAutoView();
       renderAll();
       return;
     }
@@ -1964,6 +2466,7 @@
       if (req === state.historyReq) {
         state.historyLoading = false;
         setBusy('refresh', false);
+        applyAutoView();
         renderAll();
       }
     }
@@ -2107,7 +2610,7 @@
   }
 
   async function handleCopyLine() {
-    if (!ensureComplete() || !(await confirmWarnings('คัดลอกข้อความ'))) return;
+    if (!(await ensureExportable('คัดลอกข้อความ'))) return;
     setBusy('line', true);
     try {
       const ok = await copyText(buildLineText(buildModel()));
@@ -2122,8 +2625,18 @@
     }
   }
 
+  /** โหมดดู: ต้องมีข้อมูลของวันที่เลือก / โหมดบันทึก: ฟอร์มครบ + ยืนยันตัวเลขผิดปกติ */
+  async function ensureExportable(actionText) {
+    if (state.tab === 'view') {
+      if (viewRecord()) return true;
+      showToast('error', 'ไม่มีข้อมูลของวันที่เลือก', 'เลือกวันที่มีจุดสีในปฏิทิน หรือกดปุ่ม "ล่าสุด"');
+      return false;
+    }
+    return ensureComplete() && (await confirmWarnings(actionText));
+  }
+
   function reportFileName(ext) {
-    const d = parseISODate(state.data.date);
+    const d = parseISODate(activeData().date);
     const stamp = d ? `${beYear(d)}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` : 'undated';
     return `SDC-SBK_Daily_Compare_${stamp}.${ext}`;
   }
@@ -2147,7 +2660,7 @@
   }
 
   async function handleExportPNG() {
-    if (!ensureComplete() || !(await confirmWarnings('สร้างรูปภาพ'))) return;
+    if (!(await ensureExportable('สร้างรูปภาพ'))) return;
     if (typeof window.html2canvas !== 'function') {
       showToast('error', 'โหลดเครื่องมือสร้างรูปภาพไม่สำเร็จ', 'กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต แล้วรีเฟรชหน้าเว็บอีกครั้ง');
       return;
@@ -2200,7 +2713,7 @@
   }
 
   async function handlePrint() {
-    if (!ensureComplete() || !(await confirmWarnings('พิมพ์รายงาน'))) return;
+    if (!(await ensureExportable('พิมพ์รายงาน'))) return;
     setBusy('print', true);
     try {
       renderReports();
@@ -2219,8 +2732,18 @@
   /* ================================================================
      12) Actions: Save / Load / Delete / Sample / Clear / Weekday
      ================================================================ */
+  /** หลังบันทึกสำเร็จ ให้หน้า "ดูรายงาน" ชี้ไปที่วันที่เพิ่งบันทึก */
+  function pointViewTo(date) {
+    const d = parseISODate(date);
+    if (!d) return;
+    state.viewDate = date;
+    state.viewPinned = true;
+    state.calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+  }
+
   async function handleSave() {
     if (state.busy.has('save')) return;
+    state.tabChosen = true; // บันทึกแล้วอยู่หน้าเดิมต่อ (เผื่อคัดลอก LINE / ดาวน์โหลดต่อ) ไม่สลับแท็บให้เอง
     if (!ensureComplete()) return;
     const record = sanitizeRecord({ ...state.data, savedAt: new Date().toISOString() });
     // ตรวจซ้ำก่อนบันทึก: ทุกช่องต้องเป็นจำนวนเต็ม 0–999,999,999 และวันที่ต้องไม่ใช่อนาคต
@@ -2256,7 +2779,8 @@
         state.dirty = false;
         state.history = loadLocalHistory();
         state.historySource = 'local';
-        showToast('success', 'บันทึกข้อมูลในเครื่องสำเร็จ', fmtThaiLong(d));
+        pointViewTo(record.date);
+        showToast('success', 'บันทึกข้อมูลในเครื่องสำเร็จ', `${fmtThaiLong(d)} (ดูรายงานได้ที่แท็บ "ดูรายงาน")`);
         return;
       }
       if (isOffline()) {
@@ -2264,6 +2788,7 @@
         addPending(record.date);
         state.dirty = false;
         state.history = mergePending(state.history);
+        pointViewTo(record.date);
         showToast('info', 'ออฟไลน์: บันทึกในเครื่องแล้ว', 'จะส่งขึ้น Google Sheets ให้อัตโนมัติเมื่อกลับมาออนไลน์');
         return;
       }
@@ -2272,13 +2797,15 @@
         const res = await sheetApi('save', { payload: JSON.stringify(record), force: '1' });
         removePending(record.date);
         state.dirty = false;
-        showToast('success', res.updated ? 'อัปเดตข้อมูลใน Google Sheets แล้ว' : 'บันทึกลง Google Sheets สำเร็จ', fmtThaiLong(d));
+        pointViewTo(record.date);
+        showToast('success', res.updated ? 'อัปเดตข้อมูลใน Google Sheets แล้ว' : 'บันทึกลง Google Sheets สำเร็จ', `${fmtThaiLong(d)} (ดูรายงานได้ที่แท็บ "ดูรายงาน")`);
         await refreshHistory({ silent: true });
       } catch (err) {
         if (!localOk) throw err;
         addPending(record.date);
         state.dirty = false;
         state.history = mergePending(state.history);
+        pointViewTo(record.date);
         showToast('error', 'ส่งขึ้น Google Sheets ไม่สำเร็จ', `${err.message} — ข้อมูลบันทึกในเครื่องแล้ว ระบบจะส่งให้อัตโนมัติ`);
       }
     } catch (err) {
@@ -2316,8 +2843,8 @@
     fillForm();
     scheduleDraftSave();
     renderAll();
-    showToast('info', 'เปิดข้อมูลจากประวัติแล้ว', fmtThaiLong(parseISODate(rec.date)));
-    if (window.innerWidth < 1024) $('#formCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTab('entry', { user: true });
+    showToast('info', 'เปิดข้อมูลเพื่อแก้ไขแล้ว', `${fmtThaiLong(parseISODate(rec.date))} (แก้แล้วกดบันทึกเพื่ออัปเดต)`);
   }
 
   async function handleDelete(date, btn) {
@@ -2337,8 +2864,9 @@
       if (state.sheetUrl && !pendingOnly) await sheetApi('delete', { date });
       removePending(date);
       deleteLocal(date);
+      if (state.viewDate === date) state.viewPinned = false; // วันที่ดูอยู่ถูกลบ → กลับไปวันล่าสุดที่มีข้อมูล
       if (state.sheetUrl && !pendingOnly) await refreshHistory({ silent: true });
-      else { state.history = state.history.filter(r => r.date !== date); renderAll(); }
+      else { state.history = state.history.filter(r => r.date !== date); applyAutoView(); renderAll(); }
       showToast('success', 'ลบรายการแล้ว', d ? fmtThaiLong(d) : '');
     } catch (err) {
       console.error(err);
@@ -2642,10 +3170,32 @@
         case 'settings-save': handleSettingsSave(); break;
         case 'settings-reset': handleSettingsReset(); break;
         case 'date-mode': setDateMode(btn.dataset.mode); break;
+        case 'tab': setTab(btn.dataset.tab, { user: true }); break;
+        case 'view-date': selectViewDate(btn.dataset.date); break;
+        case 'view-step': stepView(Number(btn.dataset.dir)); break;
+        case 'view-latest': goLatest(); break;
+        case 'cal-month': shiftCalMonth(Number(btn.dataset.dir)); break;
+        case 'trend-metric': state.trendMetric = btn.dataset.metric; renderTrend(); break;
+        case 'entry-for-date': handleEntryForDate(); break;
       }
     });
 
     $('#settingsModal').addEventListener('click', e => { if (e.target.id === 'settingsModal') closeSettings(); });
+    // โหมดดูรายงาน: ลูกศรซ้าย/ขวา = วันก่อนหน้า/ถัดไปที่มีข้อมูล (เมื่อไม่ได้พิมพ์อยู่ในช่องกรอก)
+    document.addEventListener('keydown', e => {
+      if (state.screen || state.tab !== 'view' || e.altKey || e.ctrlKey || e.metaKey) return;
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      const t = e.target;
+      if (t && (t.closest('input, textarea, select, [role="radiogroup"], .overlay.open') || t.isContentEditable)) return;
+      if ($('.overlay.open')) return;
+      e.preventDefault();
+      stepView(e.key === 'ArrowLeft' ? -1 : 1);
+    });
+    // จุดบนกราฟกด Enter/Space ได้เหมือนปุ่ม
+    $('#trendChart').addEventListener('keydown', e => {
+      const pt = e.target.closest && e.target.closest('[data-action="view-date"]');
+      if (pt && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectViewDate(pt.dataset.date); }
+    });
     document.addEventListener('keydown', e => {
       if (state.screen) return;
       if (e.key === 'Escape' && $('#settingsModal').classList.contains('open') && !$('#confirmModal').classList.contains('open')) closeSettings();
@@ -2727,6 +3277,11 @@
     if (state.dateMode === 'auto') state.data.date = todayISO();
     else if (!parseISODate(state.data.date) || dayKey(parseISODate(state.data.date)) > dayKey(new Date())) state.data.date = todayISO();
     state.history = loadLocalHistory();
+    // หน้าแรก: มีข้อมูล → "ดูรายงาน" วันล่าสุดที่มีข้อมูล / ยังไม่มี → "บันทึกข้อมูล"
+    // (ถ้ามีงานค้างที่ยังไม่บันทึก เปิดหน้าบันทึกข้อมูลให้ทำต่อ)
+    if (state.dirty && hasNumbers()) { state.tab = 'entry'; state.tabChosen = true; }
+    if (state.sheetUrl) state.historyLoading = true; // กำลังจะโหลดจากชีต → แสดงสถานะโหลดแทน "ไม่มีข้อมูล"
+    applyAutoView();
 
     fillForm();
     handleEvents();
