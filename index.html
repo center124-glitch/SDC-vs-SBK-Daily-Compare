@@ -62,8 +62,17 @@
 </script>
 
 <!-- ============================================================
-     SDC vs SBK Daily Compare — v4
-     ไฟล์: SDC_SBK_Daily_Compare_v4.html  (คู่กับ Code_SDC_SBK_Daily_v3.gs — ฝั่ง GAS ไม่เปลี่ยน)
+     SDC vs SBK Daily Compare — v6
+     ไฟล์: SDC_SBK_Daily_Compare_v6.html  (คู่กับ Code_SDC_SBK_Daily_v5.gs — ฝั่ง GAS ไม่เปลี่ยน)
+     v6 เปลี่ยนแปลง:
+       • ฟอร์มผูกกับวันที่: เปลี่ยนวันที่ (อัตโนมัติ/เลือกเอง/ปุ่มวัน/ข้ามเที่ยงคืน) → โหลดข้อมูลที่บันทึกของวันนั้น
+         หรือฟอร์มว่างถ้ายังไม่มีข้อมูล (เดิมเปลี่ยนแค่วันที่ ตัวเลขของวันก่อนค้างอยู่)
+       • ตัดปุ่ม "ใช้ข้อมูลตัวอย่าง" (เสี่ยงบันทึกทับข้อมูลจริงวันที่ 22/09) → ปุ่ม "ยกเลิกการแก้ไข"
+       • ใบรายงาน: ป้าย "ฉบับร่าง" เมื่อยังไม่บันทึก, ▲▼ เทียบสัปดาห์ก่อน, เวลาบันทึกข้อมูล
+     v5 เปลี่ยนแปลง:
+       • หน้า "ดูรายงาน" เปิดเป็นหน้าแรกเสมอ + จัดวางแบบแดชบอร์ด (แถบวันที่, การ์ด KPI, ปฏิทิน, กราฟ)
+       • แก้ edge case: แถวซ้ำในชีต, ข้ามเที่ยงคืนในหน้าปฏิทิน, วันที่พิมพ์เองในชีต (dd/mm/yyyy),
+         โฟกัสหลุดจากหน้าต่างยืนยัน, นาฬิกาเครื่องคลาดเคลื่อน, พื้นที่เก็บข้อมูลเต็ม
      v4 เปลี่ยนแปลง:
        • แยก 2 โหมด: "ดูรายงาน" (ข้อมูลที่บันทึกแล้ว) และ "บันทึกข้อมูล" (ฟอร์ม)
        • เปิดแอปแสดงวันล่าสุดที่มีข้อมูล + ปฏิทินเลือกวัน (จุดสี = มีข้อมูล) + ปุ่มเลื่อนวันก่อน/ถัดไป
@@ -576,6 +585,15 @@
   }
   .rpt-foot-brand { display: flex; align-items: center; gap: 8px; font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 13px; color: #0891B2; }
   .rpt-foot-brand img.logo-img { width: 22px; height: 22px; border-radius: 6px; }
+  /* ▲▼ เทียบสัปดาห์ก่อน (ในใบรายงาน) */
+  .rpt-wow { margin-left: auto; font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 12.5px; line-height: 1.5; padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
+  .rpt-wow.up { color: #3F6212; background: #ECFCCB; }
+  .rpt-wow.down { color: #BE123C; background: #FFE4E6; }
+  .rpt-wow.flat { color: #475569; background: #F1F5F9; }
+  .rpt-tr-label { display: flex; align-items: center; gap: 8px; }
+  /* ตราประทับ "ฉบับร่าง" — กันส่งตัวเลขที่ยังไม่บันทึกให้ผู้บริหารโดยไม่รู้ตัว */
+  .rpt-draft { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 13px; line-height: 1.4; color: #B45309; background: #FFFBEB; border: 2px dashed #F59E0B; padding: 4px 12px; border-radius: 10px; transform: rotate(-2deg); white-space: nowrap; }
+  .rpt-draft small { display: block; font-family: 'Sarabun', sans-serif; font-weight: 500; font-size: 11px; color: #92400E; }
 
   /* Stage นอกจอสำหรับ export ขนาดจริง 1:1 (ห้าม display:none เพราะ html2canvas ต้องวัด layout ได้) */
   #exportStage { position: fixed; left: -12000px; top: 0; width: 794px; height: 1123px; pointer-events: none; }
@@ -804,6 +822,79 @@
   .rpt-empty h3 { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1.1rem; color: var(--heading); }
 
   /* ============================================================
+     8.27) v5: Dashboard — Hero / KPI / Banner / Skeleton
+     ============================================================ */
+  #sharedPool { display: none; } /* คลังการ์ดที่ใช้ร่วม: ถูกย้ายเข้า slot ตามโหมดเสมอ */
+  .hero { overflow: hidden; }
+  .hero-accent { height: 4px; background: linear-gradient(90deg, #22D3EE, #A855F7 55%, #A3E635); }
+  .hero-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 20px; align-items: center; padding: 18px 20px; }
+  .hero-date { display: flex; align-items: center; gap: 10px; }
+  .hero-date-main { min-width: 250px; padding: 8px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--day, var(--line-strong)); }
+  .hero-day { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: .92rem; color: var(--day, var(--muted)); line-height: 1.3; }
+  .hero-full { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 1.45rem; color: var(--heading); line-height: 1.3; white-space: nowrap; }
+  .hero-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .hero-insight { font-size: .95rem; line-height: 1.7; color: var(--text); min-width: 0; }
+  .hero-insight b { font-family: 'Prompt', sans-serif; font-weight: 600; }
+  .hero-insight .up { color: var(--lime); } .hero-insight .down { color: var(--rose); }
+  .hero-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  @media (max-width: 1023px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 14px; }
+    .hero-date-main { flex: 1; min-width: 0; }
+    .hero-full { white-space: normal; font-size: 1.3rem; }
+    .hero-actions { justify-content: stretch; }
+    .hero-actions .btn { flex: 1; }
+    /* มือถือมีแถบปุ่ม LINE/PNG ลอยด้านล่างอยู่แล้ว → ซ่อนปุ่มซ้ำในแถบวันที่ */
+    .hero-actions [data-action="line"], .hero-actions [data-action="png"] { display: none; }
+  }
+
+  .kpi-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+  @media (min-width: 768px) { .kpi-grid { grid-template-columns: 1fr 1fr; } .kpi-transit { grid-column: 1 / -1; } }
+  @media (min-width: 1280px) { .kpi-grid { grid-template-columns: 1.2fr 1.2fr .85fr; } .kpi-transit { grid-column: auto; } }
+  .kpi { padding: 18px 20px 20px; }
+  .kpi-top { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: linear-gradient(90deg, #22D3EE, #A855F7); }
+  .kpi-transit .kpi-top { background: linear-gradient(90deg, #A3E635, #22C55E); }
+  .kpi-head { display: flex; align-items: center; gap: 10px; }
+  .kpi-title { font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1.02rem; color: var(--heading); }
+  .kpi-sites { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .kpi-site { padding: 11px 13px 12px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); min-width: 0; }
+  .kpi-site.sbk { border-top: 3px solid var(--cyan); }
+  .kpi-site.sdc { border-top: 3px solid var(--purple); }
+  .kpi-tag { display: flex; align-items: center; gap: 6px; font-size: .76rem; color: var(--muted); line-height: 1.3; }
+  .kpi-tag b { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: .72rem; padding: 1px 8px; border-radius: 999px; color: #fff; }
+  .kpi-site.sbk .kpi-tag b { background: #0891B2; } .kpi-site.sdc .kpi-tag b { background: #7C3AED; }
+  .kpi-num { font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 1.9rem; line-height: 1.25; color: var(--heading); font-variant-numeric: tabular-nums; margin-top: 4px; }
+  .kpi-num small { font-family: 'Sarabun', sans-serif; font-weight: 500; font-size: .85rem; color: var(--muted); margin-left: 4px; }
+  .wow { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: .76rem; font-weight: 600; line-height: 1.3; white-space: nowrap; }
+  .wow.up { color: var(--lime); } .wow.down { color: var(--rose); } .wow.flat, .wow.none { color: var(--muted); font-weight: 500; }
+  .split { margin-top: 14px; }
+  .split-bar { display: flex; height: 10px; border-radius: 10px; overflow: hidden; background: var(--line); }
+  .split-bar span { display: block; height: 100%; transition: width .45s cubic-bezier(.2, .8, .2, 1); }
+  .split-bar .sbk { background: linear-gradient(90deg, #0E7490, #22D3EE); }
+  .split-bar .sdc { background: linear-gradient(90deg, #A855F7, #6D28D9); }
+  .split-labels { display: flex; justify-content: space-between; gap: 8px; margin-top: 5px; font-size: .74rem; color: var(--muted); }
+  .split-labels b { font-weight: 600; color: var(--text-2); }
+  .kpi-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .kpi-m { padding: 8px 10px; border-radius: 12px; background: rgba(var(--purple-rgb), .06); border: 1px solid var(--line); min-width: 0; }
+  .kpi-m span { display: block; font-size: .7rem; color: var(--muted); line-height: 1.35; }
+  .kpi-m strong { display: block; font-family: 'Prompt', sans-serif; font-weight: 700; font-size: 1.02rem; line-height: 1.4; color: var(--heading); font-variant-numeric: tabular-nums; }
+  .kpi-tr-list { display: grid; gap: 12px; margin-top: 14px; grid-template-columns: 1fr; }
+  @media (min-width: 768px) and (max-width: 1279px) { .kpi-tr-list { grid-template-columns: 1fr 1fr; } }
+  .kpi-tr { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--lime); min-width: 0; }
+  .kpi-tr-icon { width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center; color: #fff; background: linear-gradient(145deg, #84CC16, #4D7C0F); font-size: 1.05rem; }
+  .kpi-note { margin-top: 10px; font-size: .8rem; color: var(--muted); }
+  .kpi-empty { padding: 34px 20px; text-align: center; }
+  .kpi-empty .big { font-size: 2.4rem; color: var(--faint); }
+  .kpi-empty h3 { margin-top: 8px; font-family: 'Prompt', sans-serif; font-weight: 600; font-size: 1.15rem; color: var(--heading); }
+  .kpi-empty p { margin-top: 4px; color: var(--text-2); font-size: .92rem; }
+
+  .banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-radius: 14px; border: 1px solid rgba(245, 158, 11, .55); background: rgba(245, 158, 11, .1); color: var(--text); font-size: .9rem; line-height: 1.5; }
+  .banner i.lead { color: #D97706; font-size: 1.1rem; }
+  .banner .btn { margin-left: auto; }
+
+  .skel { border-radius: 12px; background: linear-gradient(90deg, var(--line) 25%, rgba(var(--cyan-rgb), .14) 50%, var(--line) 75%); background-size: 200% 100%; animation: skel 1.2s ease-in-out infinite; }
+  @keyframes skel { to { background-position: -200% 0; } }
+
+  /* ============================================================
      8.3) Splash / Idle screen
      ใช้โทนมืดเสมอ (เป็นหน้าแบรนด์ของแอป) ไม่ขึ้นกับโหมดสว่าง/มืด
      ============================================================ */
@@ -955,28 +1046,39 @@
     <p class="tab-context" id="tabContext" aria-live="polite"></p>
   </div>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-32 lg:pb-12 grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[auto_1fr] items-start gap-6">
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 pt-4 pb-32 lg:pb-12">
 
-    <!-- ===================== LEFT: ฟอร์ม + ประวัติ ===================== -->
-    <section id="leftTop" class="lg:col-span-5 lg:col-start-1 lg:row-start-1 space-y-6 min-w-0">
-
-      <!-- ===== โหมดดูรายงาน: เลือกวันที่ ===== -->
-      <div class="glass" id="navCard" data-panel="view">
+    <!-- =================== โหมดดูรายงาน (หน้าแรก) =================== -->
+    <div id="viewLayout" data-panel="view" class="space-y-6">
+      <div id="draftBanner" class="banner is-hidden" role="status"></div>
+      <div class="glass hero" id="heroCard">
+        <div class="hero-accent" aria-hidden="true"></div>
+        <div class="hero-grid">
+          <div class="hero-date">
+            <button type="button" class="icon-btn" data-action="view-step" data-dir="-1" id="navPrev" aria-label="วันก่อนหน้าที่มีข้อมูล" title="วันก่อนหน้าที่มีข้อมูล (ลูกศรซ้าย)"><i class="fa-solid fa-chevron-left"></i></button>
+            <div class="hero-date-main" id="navDate"></div>
+            <button type="button" class="icon-btn" data-action="view-step" data-dir="1" id="navNext" aria-label="วันถัดไปที่มีข้อมูล" title="วันถัดไปที่มีข้อมูล (ลูกศรขวา)"><i class="fa-solid fa-chevron-right"></i></button>
+          </div>
+          <div class="hero-insight" id="navInsight" aria-live="polite"></div>
+          <div class="hero-actions">
+            <button type="button" class="btn btn-ghost" data-action="view-latest" title="ไปวันล่าสุดที่มีข้อมูล"><i class="fa-solid fa-forward-fast btn-icon"></i><span>ล่าสุด</span></button>
+            <button type="button" class="btn btn-line" data-action="line"><span class="btn-spinner"></span><i class="fa-brands fa-line btn-icon"></i><span>คัดลอก LINE</span></button>
+            <button type="button" class="btn btn-primary" data-action="png"><span class="btn-spinner"></span><i class="fa-solid fa-image btn-icon"></i><span>PNG</span></button>
+          </div>
+        </div>
+      </div>
+      <div id="kpiArea" aria-live="polite"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div class="lg:col-span-5 space-y-6 min-w-0">
+      <div class="glass" id="navCard">
         <div class="card-head">
           <div class="card-icon"><i class="fa-solid fa-calendar-check"></i></div>
           <div class="min-w-0">
-            <h2 class="card-title">เลือกวันที่ต้องการดู</h2>
-            <p class="card-sub">วันที่มีจุดสี = มีข้อมูลบันทึกแล้ว</p>
+            <h2 class="card-title">ปฏิทินข้อมูล</h2>
+            <p class="card-sub">แตะวันที่เพื่อดูรายงาน จุดสี = มีข้อมูลแล้ว</p>
           </div>
-          <button type="button" class="btn btn-ghost btn-sm ml-auto" data-action="view-latest" title="ไปวันล่าสุดที่มีข้อมูล"><i class="fa-solid fa-forward-fast btn-icon"></i><span>ล่าสุด</span></button>
         </div>
-        <div class="p-5 space-y-4">
-          <div class="nav-date">
-            <button type="button" class="icon-btn" data-action="view-step" data-dir="-1" id="navPrev" aria-label="วันก่อนหน้าที่มีข้อมูล" title="วันก่อนหน้าที่มีข้อมูล (ลูกศรซ้าย)"><i class="fa-solid fa-chevron-left"></i></button>
-            <div class="nav-date-main" id="navDate"></div>
-            <button type="button" class="icon-btn" data-action="view-step" data-dir="1" id="navNext" aria-label="วันถัดไปที่มีข้อมูล" title="วันถัดไปที่มีข้อมูล (ลูกศรขวา)"><i class="fa-solid fa-chevron-right"></i></button>
-          </div>
-          <div class="insight" id="navInsight"></div>
+        <div class="p-4 sm:p-5">
           <div>
             <div class="cal-head">
               <button type="button" class="icon-btn" data-action="cal-month" data-dir="-1" aria-label="เดือนก่อนหน้า"><i class="fa-solid fa-angle-left"></i></button>
@@ -988,10 +1090,47 @@
           </div>
         </div>
       </div>
+      <div class="glass" id="cmpCard">
+        <div class="card-head">
+          <div class="card-icon ic-purple"><i class="fa-solid fa-code-compare"></i></div>
+          <div class="min-w-0">
+            <h2 class="card-title">เทียบกับครั้งก่อน</h2>
+            <p class="card-sub" id="cmpSub">—</p>
+          </div>
+        </div>
+        <div class="p-4 sm:p-5 overflow-x-auto" id="cmpBody"></div>
+      </div>
+          <div data-slot="history" data-for="view"></div>
+        </div>
+        <div class="lg:col-span-7 space-y-6 min-w-0">
+      <div class="glass" id="trendCard">
+        <div class="card-head flex-wrap">
+          <div class="card-icon ic-lime"><i class="fa-solid fa-chart-line"></i></div>
+          <div class="min-w-0">
+            <h2 class="card-title">แนวโน้ม 14 ครั้งล่าสุด</h2>
+            <p class="card-sub" id="trendSub">—</p>
+          </div>
+        </div>
+        <div class="p-4 sm:p-5 space-y-3">
+          <div class="seg" role="group" aria-label="เลือกข้อมูลกราฟ" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">
+            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="people" aria-pressed="true">ยอดคน</button>
+            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="cars" aria-pressed="false">ยอดรถ</button>
+            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="ratio" aria-pressed="false">อัตราส่วน</button>
+          </div>
+          <div class="trend-legend" id="trendLegend"></div>
+          <div id="trendChart"></div>
+          <p class="text-xs c-muted">แตะจุดบนกราฟเพื่อเปิดรายงานของวันนั้น</p>
+        </div>
+      </div>
+          <div data-slot="report" data-for="view"></div>
+          <div data-slot="line" data-for="view"></div>
+        </div>
+      </div>
+    </div>
 
-      <!-- ===== โหมดบันทึกข้อมูล: ฟอร์ม ===== -->
-      <div data-panel="entry">
-
+    <!-- =================== โหมดบันทึกข้อมูล =================== -->
+    <div id="entryLayout" data-panel="entry" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div class="lg:col-span-5 space-y-6 min-w-0">
       <div class="glass" id="formCard">
         <div class="card-head">
           <div class="card-icon"><i class="fa-solid fa-pen-to-square"></i></div>
@@ -1100,8 +1239,8 @@
             <button type="button" class="btn btn-lime sm:col-span-3" data-action="save">
               <span class="btn-spinner"></span><i class="fa-solid fa-floppy-disk btn-icon"></i><span id="saveLabel">บันทึกข้อมูล</span>
             </button>
-            <button type="button" class="btn btn-ghost sm:col-span-2" data-action="sample">
-              <i class="fa-solid fa-rotate-left btn-icon"></i><span>ใช้ข้อมูลตัวอย่าง</span>
+            <button type="button" class="btn btn-ghost sm:col-span-2" data-action="revert" id="revertBtn" title="คืนค่าตัวเลขเป็นข้อมูลที่บันทึกไว้ของวันที่นี้ (หรือฟอร์มว่างถ้ายังไม่เคยบันทึก)">
+              <i class="fa-solid fa-rotate-left btn-icon"></i><span>ยกเลิกการแก้ไข</span>
             </button>
             <button type="button" class="btn btn-danger-ghost" data-action="clear">
               <i class="fa-solid fa-eraser btn-icon"></i><span>ล้างข้อมูล</span>
@@ -1109,18 +1248,21 @@
           </div>
         </div>
       </div>
+        <div data-slot="history" data-for="entry"></div>
       </div>
-    </section>
-
-    <!-- ===================== RIGHT: ผลคำนวณ + รายงาน ===================== -->
-    <section id="rightCol" class="lg:col-span-7 lg:col-start-6 lg:row-start-1 lg:row-span-2 space-y-6 min-w-0">
-
+      <div class="lg:col-span-7 space-y-6 min-w-0">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="glass calc-card" id="calcPeople" aria-live="polite"></div>
         <div class="glass calc-card" id="calcCars" aria-live="polite"></div>
       </div>
+        <div data-slot="report" data-for="entry"></div>
+        <div data-slot="line" data-for="entry"></div>
+      </div>
+    </div>
 
-      <div class="glass">
+    <!-- การ์ดที่ใช้ร่วมกัน 2 โหมด: JS จะย้ายไปไว้ในช่อง data-slot ของโหมดที่เปิดอยู่ -->
+    <div id="sharedPool" class="space-y-6">
+      <div class="glass" id="reportCard">
         <div class="card-head">
           <div class="card-icon ic-purple"><i class="fa-solid fa-file-image"></i></div>
           <div>
@@ -1152,8 +1294,7 @@
           </div>
         </div>
       </div>
-
-      <div class="glass">
+      <div class="glass" id="lineCard">
         <div class="card-head">
           <div class="card-icon ic-line"><i class="fa-brands fa-line"></i></div>
           <div>
@@ -1168,42 +1309,6 @@
           <pre class="line-preview" id="linePreview"></pre>
         </div>
       </div>
-    </section>
-
-    <section id="leftBottom" class="lg:col-span-5 lg:col-start-1 lg:row-start-2 space-y-6 min-w-0">
-      <!-- ===== เทียบกับสัปดาห์ก่อน ===== -->
-      <div class="glass" id="cmpCard" data-panel="view">
-        <div class="card-head">
-          <div class="card-icon ic-purple"><i class="fa-solid fa-code-compare"></i></div>
-          <div class="min-w-0">
-            <h2 class="card-title">เทียบกับครั้งก่อน</h2>
-            <p class="card-sub" id="cmpSub">—</p>
-          </div>
-        </div>
-        <div class="p-4 sm:p-5 overflow-x-auto" id="cmpBody"></div>
-      </div>
-
-      <!-- ===== แนวโน้ม ===== -->
-      <div class="glass" id="trendCard" data-panel="view">
-        <div class="card-head flex-wrap">
-          <div class="card-icon ic-lime"><i class="fa-solid fa-chart-line"></i></div>
-          <div class="min-w-0">
-            <h2 class="card-title">แนวโน้ม 14 ครั้งล่าสุด</h2>
-            <p class="card-sub" id="trendSub">—</p>
-          </div>
-        </div>
-        <div class="p-4 sm:p-5 space-y-3">
-          <div class="seg" role="group" aria-label="เลือกข้อมูลกราฟ" style="grid-template-columns:repeat(3,1fr);margin-bottom:0">
-            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="people" aria-pressed="true">ยอดคน</button>
-            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="cars" aria-pressed="false">ยอดรถ</button>
-            <button type="button" class="seg-btn" data-action="trend-metric" data-metric="ratio" aria-pressed="false">อัตราส่วน</button>
-          </div>
-          <div class="trend-legend" id="trendLegend"></div>
-          <div id="trendChart"></div>
-          <p class="text-xs c-muted">แตะจุดบนกราฟเพื่อเปิดรายงานของวันนั้น</p>
-        </div>
-      </div>
-
       <div class="glass" id="historyCard">
         <div class="card-head">
           <div class="card-icon ic-lime"><i class="fa-solid fa-clock-rotate-left"></i></div>
@@ -1221,7 +1326,7 @@
           <div class="history-list space-y-2" id="historyList"></div>
         </div>
       </div>
-    </section>
+    </div>
   </main>
 
   <!-- แถบปุ่มลอยบนมือถือ -->
@@ -1276,7 +1381,7 @@
     <div class="settings-status" id="settingsStatus"></div>
 
     <ol class="steps">
-      <li>เปิด Apps Script ของโปรเจกต์ที่ Deploy URL นี้ไว้ วางโค้ดจาก <code>Code_SDC_SBK_Daily_v3.gs</code> แล้วกดบันทึก</li>
+      <li>เปิด Apps Script ของโปรเจกต์ที่ Deploy URL นี้ไว้ วางโค้ดจาก <code>Code_SDC_SBK_Daily_v5.gs</code> แล้วกดบันทึก</li>
       <li>อัปเดตโค้ดโดยไม่ให้ URL เปลี่ยน: <b>Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy</b></li>
       <li>ถ้าใช้ <b>New deployment</b> จะได้ URL ใหม่ ต้องนำ URL ใหม่มาวางในช่องด้านบน</li>
       <li>ตั้ง Execute as: <b>Me</b> และ Who has access: <b>Anyone</b> ทุกครั้ง</li>
@@ -1300,7 +1405,7 @@
   /* ================================================================
      1) ค่าคงที่ & ข้อมูลตัวอย่าง
      ================================================================ */
-  const APP_VERSION = 'v4';
+  const APP_VERSION = 'v6';
 
   /* Google Sheets ที่ฝังไว้ในโปรแกรม (ผู้ใช้ยังเปลี่ยน URL ได้จากหน้าตั้งค่า ถ้า Deploy ใหม่) */
   const DEFAULT_SHEET_URL = 'https://script.google.com/macros/s/AKfycbypTdPh_wFU4Ou3GiekSN-pjHaJ42ftkE1EkRPMUmsD3Sb2kjFZ-QAalVOaonbhdhkg/exec';
@@ -1335,6 +1440,7 @@
   const JSONP_TIMEOUT_MS = 15000;
   const PENDING_RETRY_MS = 2 * 60 * 1000;
 
+  /** ข้อมูลตัวอย่างตามโจทย์ (ไม่แสดงในแอปแล้ว เพราะเสี่ยงบันทึกทับข้อมูลจริงวันที่ 22/09) */
   function getSampleData() {
     return { date: '2026-09-22', sbkPeople: 36257, sdcPeople: 41408, sbkCars: 7661, sdcCars: 10730, mrt: 10090, ebm: 2209 };
   }
@@ -1375,6 +1481,7 @@
     lastActivity: Date.now(),
     dirty: false,            // มีการแก้ไขในฟอร์มที่ยังไม่ได้บันทึก
     ackSig: '',              // ข้อมูลชุดที่ผู้ใช้ยืนยันแล้วว่าตัวเลขผิดปกติถูกต้อง (ไม่ถามซ้ำ)
+    draftAckSig: '',         // ข้อมูลชุดที่ผู้ใช้ยืนยันแล้วว่าจะส่งออกเป็น "ฉบับร่าง"
     busy: new Set(),         // action ที่กำลังทำงาน (กันพักหน้าจอระหว่างส่งออก/บันทึก)
     historyReq: 0,           // เลขลำดับคำขอประวัติ กันผลลัพธ์เก่ามาทับผลใหม่
     syncing: false,
@@ -1385,7 +1492,10 @@
     viewDate: '',            // วันที่ที่กำลังดูในโหมดดูรายงาน
     viewPinned: false,       // ผู้ใช้เลือกวันเองแล้ว → โหลดประวัติใหม่จะไม่กระโดดไปวันล่าสุด
     calMonth: null,          // เดือนที่ปฏิทินแสดง (วันที่ 1 ของเดือน)
-    trendMetric: 'people'
+    trendMetric: 'people',
+    lastDayKey: 0,           // ใช้ตรวจการข้ามเที่ยงคืน (รีเฟรชปฏิทิน/ปุ่มวันอนาคต)
+    clockWarned: false,
+    storageWarned: false
   };
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -1401,9 +1511,9 @@
   /* ================================================================
      3) Utilities
      ================================================================ */
-  const nfInt = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 });
-  const nf1 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const nf2 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const nfInt = new Intl.NumberFormat('th-TH-u-nu-latn', { maximumFractionDigits: 0 });
+  const nf1 = new Intl.NumberFormat('th-TH-u-nu-latn', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('th-TH-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1661,7 +1771,16 @@
       </div>`;
   }
 
-  function reportSectionTemplate({ icon, title, unit, block }) {
+  /** ▲▼ เทียบกับข้อมูลฐาน (ใช้ข้อความ ▲▼ แทนไอคอน เพื่อให้ html2canvas วาดได้แน่นอน) */
+  function rptWow(cur, prev) {
+    if (cur === null || cur === undefined || prev === null || prev === undefined || prev === 0) return '';
+    const pct = (cur - prev) / prev * 100;
+    const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+    const arrow = pct > 0 ? '▲' : pct < 0 ? '▼' : '■';
+    return `<span class="rpt-wow ${cls}">${arrow} ${escapeHtml(fmtPct(pct))}</span>`;
+  }
+
+  function reportSectionTemplate({ icon, title, unit, block, prev }) {
     const { sbk, sdc, cmp } = block;
     const t = trendInfo(cmp.trend);
     const w = barWidths(sbk, sdc);
@@ -1676,12 +1795,12 @@
         </div>
         <div class="rpt-pair">
           <div class="rpt-site is-sbk">
-            <div class="rpt-site-top"><span class="rpt-site-tag">SBK</span><span class="rpt-site-name">ซีคอนบางแค</span></div>
+            <div class="rpt-site-top"><span class="rpt-site-tag">SBK</span><span class="rpt-site-name">ซีคอนบางแค</span>${prev ? rptWow(sbk, prev.sbk) : ''}</div>
             <div class="rpt-site-val" data-fit="20">${fmtInt(sbk)}<small>${unit}</small></div>
             <div class="rpt-bar"><span style="width:${w.sbk}%"></span></div>
           </div>
           <div class="rpt-site is-sdc">
-            <div class="rpt-site-top"><span class="rpt-site-tag">SDC</span><span class="rpt-site-name">ซีคอนศรีนครินทร์</span></div>
+            <div class="rpt-site-top"><span class="rpt-site-tag">SDC</span><span class="rpt-site-name">ซีคอนศรีนครินทร์</span>${prev ? rptWow(sdc, prev.sdc) : ''}</div>
             <div class="rpt-site-val" data-fit="20">${fmtInt(sdc)}<small>${unit}</small></div>
             <div class="rpt-bar"><span style="width:${w.sdc}%"></span></div>
           </div>
@@ -1707,8 +1826,21 @@
   }
 
   /** ใบรายงานโทนสว่าง — สีประจำวันใช้ ink เสมอเพราะพื้นเป็นสีขาว */
+  /** สถานะของข้อมูลในใบรายงาน: ฉบับร่าง / บันทึกแล้ว (+เวลา) และข้อมูลฐานสำหรับ ▲▼ */
+  function reportMeta(m) {
+    const src = activeData();
+    const rec = findRecord(src.date);
+    const draft = state.tab === 'entry' ? isUnsaved() : false;
+    const base = src.date ? compareBase(src.date) : null;
+    const savedAt = !draft && rec && rec.savedAt ? new Date(rec.savedAt) : null;
+    return { draft, pending: !!(rec && rec.pending) && !draft, savedAt: savedAt && !isNaN(savedAt) ? savedAt : null, base };
+  }
+
   function reportTemplate(m) {
     const d = m.dateObj;
+    const meta = reportMeta(m);
+    const b = meta.base ? meta.base.rec : null;
+    const bd = b ? parseISODate(b.date) : null;
     const day = d ? DAYS[d.getDay()] : null;
     const now = new Date();
     return `
@@ -1719,6 +1851,7 @@
         <div class="rpt-inner">
           <div class="rpt-letterhead">
             ${SEACON_LOGO_HTML}
+            ${meta.draft ? '<div class="rpt-draft">ฉบับร่าง<small>ยังไม่ได้บันทึกข้อมูล</small></div>' : ''}
             <div class="rpt-app">
               <img class="logo-img" src="${REPORT_LOGO_URI}" alt="">
               <div><div class="rpt-app-name">SDC vs SBK Daily Compare</div><div class="rpt-app-sub">รายงานเปรียบเทียบยอดประจำวัน</div></div>
@@ -1737,8 +1870,8 @@
           </header>
           <div class="rpt-rule"></div>
           <div class="rpt-body">
-            ${reportSectionTemplate({ icon: 'fa-people-group', title: 'ยอดคนเข้าศูนย์ฯ', unit: 'คน', block: m.people })}
-            ${reportSectionTemplate({ icon: 'fa-car-side', title: 'ยอดรถยนต์', unit: 'คัน', block: m.cars })}
+            ${reportSectionTemplate({ icon: 'fa-people-group', title: 'ยอดคนเข้าศูนย์ฯ', unit: 'คน', block: m.people, prev: b ? { sbk: b.sbkPeople, sdc: b.sdcPeople } : null })}
+            ${reportSectionTemplate({ icon: 'fa-car-side', title: 'ยอดรถยนต์', unit: 'คัน', block: m.cars, prev: b ? { sbk: b.sbkCars, sdc: b.sdcCars } : null })}
             <section class="rpt-sec">
               <div class="rpt-sec-head">
                 <div class="rpt-sec-icon"><i class="fa-solid fa-route"></i></div>
@@ -1748,19 +1881,19 @@
               <div class="rpt-transit">
                 <div class="rpt-tr">
                   <div class="rpt-tr-icon"><i class="fa-solid fa-train-subway"></i></div>
-                  <div><div class="rpt-tr-label">MRT</div><div class="rpt-tr-val" data-fit="16">${fmtInt(m.mrt)}<small>คน</small></div></div>
+                  <div><div class="rpt-tr-label">MRT${b ? rptWow(m.mrt, b.mrt) : ''}</div><div class="rpt-tr-val" data-fit="16">${fmtInt(m.mrt)}<small>คน</small></div></div>
                 </div>
                 <div class="rpt-tr">
                   <div class="rpt-tr-icon"><i class="fa-solid fa-bus"></i></div>
-                  <div><div class="rpt-tr-label">EBM</div><div class="rpt-tr-val" data-fit="16">${fmtInt(m.ebm)}<small>คน</small></div></div>
+                  <div><div class="rpt-tr-label">EBM${b ? rptWow(m.ebm, b.ebm) : ''}</div><div class="rpt-tr-val" data-fit="16">${fmtInt(m.ebm)}<small>คน</small></div></div>
                 </div>
               </div>
             </section>
           </div>
           <footer class="rpt-foot">
             <div>
-              <div>ข้อมูลประจำ${d ? fmtThaiLong(d) : ' —'}</div>
-              <div>จัดทำรายงานเมื่อ ${fmtThaiShort(now)} เวลา ${fmtTime(now)} น.</div>
+              <div>ข้อมูลประจำ${d ? fmtThaiLong(d) : ' —'}${bd ? ` · ▲▼ เทียบกับวัน${DAYS[bd.getDay()].th} ${fmtThaiShort(bd)}` : ''}</div>
+              <div>${meta.draft ? '<b style="color:#B45309">สถานะ: ฉบับร่าง (ยังไม่บันทึก)</b>' : meta.savedAt ? `บันทึกข้อมูลเมื่อ ${fmtThaiShort(meta.savedAt)} ${fmtTime(meta.savedAt)} น.${meta.pending ? ' (รอส่งขึ้น Google Sheets)' : ''}` : ''}${meta.draft || meta.savedAt ? ' · ' : ''}จัดทำรายงานเมื่อ ${fmtThaiShort(now)} ${fmtTime(now)} น.</div>
             </div>
             <div class="rpt-foot-brand"><img class="logo-img" src="${REPORT_LOGO_URI}" alt="">SDC vs SBK Daily Compare</div>
           </footer>
@@ -1815,7 +1948,7 @@
     renderReports(m);
     renderLinePreview(m);
     renderSource();
-    if (state.tab === 'view') { renderNavigator(); renderCompare(); renderTrend(); }
+    if (state.tab === 'view') { renderHero(); renderKpis(); renderCalendar(); renderCompare(); renderTrend(); }
     renderHistory();
     renderSyncState();
   }
@@ -1830,6 +1963,12 @@
       b.tabIndex = on ? 0 : -1;
     });
     $$('[data-panel]').forEach(el => el.classList.toggle('is-hidden', el.dataset.panel !== state.tab));
+    // ย้ายการ์ดที่ใช้ร่วม (ใบรายงาน / LINE / ประวัติ) ไปไว้ในตำแหน่งของโหมดปัจจุบัน
+    [['report', '#reportCard'], ['line', '#lineCard'], ['history', '#historyCard']].forEach(([slot, sel]) => {
+      const card = $(sel);
+      const target = $(`[data-slot="${slot}"][data-for="${state.tab}"]`);
+      if (card && target && card.parentElement !== target) target.appendChild(card);
+    });
     const ctx = $('#tabContext');
     if (state.tab === 'view') {
       const d = parseISODate(state.viewDate);
@@ -1838,7 +1977,11 @@
       else ctx.innerHTML = `กำลังดูข้อมูลที่บันทึกแล้วของ <b>${escapeHtml(d ? fmtThaiLong(d) : '—')}</b>${state.viewDate === latest ? ' (วันล่าสุดที่มีข้อมูล)' : ''}`;
     } else {
       const d = parseISODate(state.data.date);
-      ctx.innerHTML = `กำลังกรอกยอดของ <b>${escapeHtml(d ? fmtThaiLong(d) : 'วันที่ยังไม่ระบุ')}</b> ใบรายงานด้านขวาแสดงตามตัวเลขในฟอร์ม`;
+      const rec = findRecord(state.data.date);
+      const status = rec
+        ? (isUnsaved() ? 'มีข้อมูลบันทึกแล้ว <b style="color:#D97706">กำลังแก้ไข ยังไม่บันทึก</b>' : 'แสดง<b>ข้อมูลที่บันทึกแล้ว</b> แก้ไขได้')
+        : (hasNumbers() ? '<b style="color:#D97706">ข้อมูลใหม่ ยังไม่บันทึก</b>' : 'ยังไม่มีข้อมูล ฟอร์มว่างพร้อมกรอก');
+      ctx.innerHTML = `วันที่รายงาน <b>${escapeHtml(d ? fmtThaiLong(d) : 'ยังไม่ระบุ')}</b> — ${status}`;
     }
   }
 
@@ -1877,7 +2020,7 @@
     return `<i class="fa-solid fa-lightbulb" style="color:#F59E0B;margin-right:6px"></i>${a}${b ? ' และ' + b : ''} ส่วน MRT ${fmtInt(r.mrt)} คน, EBM ${fmtInt(r.ebm)} คน`;
   }
 
-  function renderNavigator() {
+  function renderHero() {
     const d = parseISODate(state.viewDate);
     const r = viewRecord();
     const dates = dataDates();
@@ -1887,17 +2030,131 @@
     const tags = [];
     if (state.viewDate && state.viewDate === latest) tags.push('<span class="saved-badge" style="margin:0"><i class="fa-solid fa-star"></i>ล่าสุด</span>');
     if (state.viewDate === todayISO()) tags.push('<span class="mode-badge" style="margin:0">วันนี้</span>');
-    if (!r) tags.push('<span class="src-badge src-none">ไม่มีข้อมูล</span>');
+    if (r && r.pending) tags.push('<span class="tag-pending"><i class="fa-solid fa-cloud-arrow-up"></i>รอส่ง</span>');
+    if (!r && !(state.historyLoading && !state.history.length)) tags.push('<span class="src-badge src-none">ไม่มีข้อมูล</span>');
     box.innerHTML = d
-      ? `<div class="nav-day">วัน${DAYS[d.getDay()].th}</div><div class="nav-full">${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${beYear(d)}</div><div class="nav-tags">${tags.join('')}</div>`
-      : '<div class="nav-full">—</div>';
+      ? `<div class="hero-day">วัน${DAYS[d.getDay()].th}</div><div class="hero-full">${d.getDate()} ${THAI_MONTHS[d.getMonth()]} ${beYear(d)}</div><div class="hero-tags">${tags.join('')}</div>`
+      : '<div class="hero-full">—</div>';
     $('#navPrev').disabled = !dates.some(x => x < state.viewDate);
     $('#navNext').disabled = !dates.some(x => x > state.viewDate);
     const ins = $('#navInsight');
-    if (r) { ins.innerHTML = insightText(r); ins.classList.remove('is-hidden'); }
-    else if (state.historyLoading) { ins.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลจาก Google Sheets...'; ins.classList.remove('is-hidden'); }
-    else ins.classList.add('is-hidden');
-    renderCalendar();
+    if (r) ins.innerHTML = insightText(r);
+    else if (state.historyLoading && !state.history.length) ins.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลล่าสุดจาก Google Sheets...';
+    else if (!latest) ins.innerHTML = '<i class="fa-regular fa-lightbulb"></i> ยังไม่มีข้อมูลที่บันทึกไว้ เริ่มกรอกยอดวันแรกได้ที่แท็บ <b>บันทึกข้อมูล</b>';
+    else ins.innerHTML = '<i class="fa-regular fa-calendar-xmark"></i> วันนี้ยังไม่มีข้อมูล เลือกวันที่มีจุดสีในปฏิทิน หรือกดปุ่ม <b>ล่าสุด</b>';
+
+    // มีตัวเลขในฟอร์มที่ยังไม่บันทึก → แจ้งในหน้าแรก ไม่ให้ลืม
+    const banner = $('#draftBanner');
+    const fd = parseISODate(state.data.date);
+    if (isUnsaved()) {
+      banner.innerHTML = `<i class="fa-solid fa-triangle-exclamation lead"></i><span>มีตัวเลขที่กรอกไว้แต่<b>ยังไม่ได้บันทึก</b>${fd ? ` (${escapeHtml(fmtThaiLong(fd))})` : ''}</span>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="tab" data-tab="entry"><i class="fa-solid fa-pen btn-icon"></i><span>ไปบันทึกต่อ</span></button>`;
+      banner.classList.remove('is-hidden');
+    } else banner.classList.add('is-hidden');
+  }
+
+  /** ชิปเปลี่ยนแปลงเทียบกับครั้งก่อน (▲/▼ %) */
+  function wowChip(cur, prev, baseLabel) {
+    if (cur === null || cur === undefined || prev === null || prev === undefined) return '<span class="wow none">— ไม่มีข้อมูลเทียบ</span>';
+    if (prev === 0) return `<span class="wow none" title="${escapeHtml(baseLabel)}">ครั้งก่อนเป็น 0</span>`;
+    const pct = (cur - prev) / prev * 100;
+    const cls = pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat';
+    const icon = pct > 0 ? 'fa-caret-up' : pct < 0 ? 'fa-caret-down' : 'fa-minus';
+    return `<span class="wow ${cls}" title="${escapeHtml(baseLabel)}: ${fmtInt(prev)}"><i class="fa-solid ${icon}"></i>${escapeHtml(fmtPct(pct))}</span>`;
+  }
+
+  function kpiPairTemplate({ title, icon, unit, sbk, sdc, psbk, psdc, baseLabel }) {
+    const c = compare(sbk, sdc);
+    const t = trendInfo(c.trend);
+    const total = (sbk || 0) + (sdc || 0);
+    const shareSbk = total > 0 ? sbk / total * 100 : 50;
+    return `
+      <div class="glass kpi">
+        <div class="kpi-top" aria-hidden="true"></div>
+        <div class="kpi-head">
+          <div class="card-icon sm"><i class="fa-solid ${icon}"></i></div>
+          <div class="kpi-title">${title}</div>
+          <span class="trend-chip ${t.cls}"><i class="fa-solid ${t.icon}"></i>${t.text}</span>
+        </div>
+        <div class="kpi-sites">
+          <div class="kpi-site sbk">
+            <div class="kpi-tag"><b>SBK</b>ซีคอนบางแค</div>
+            <div class="kpi-num" data-fit="14">${fmtInt(sbk)}<small>${unit}</small></div>
+            ${wowChip(sbk, psbk, baseLabel)}
+          </div>
+          <div class="kpi-site sdc">
+            <div class="kpi-tag"><b>SDC</b>ซีคอนศรีนครินทร์</div>
+            <div class="kpi-num" data-fit="14">${fmtInt(sdc)}<small>${unit}</small></div>
+            ${wowChip(sdc, psdc, baseLabel)}
+          </div>
+        </div>
+        <div class="split" title="สัดส่วนจากยอดรวม 2 ศูนย์ ${fmtInt(total)} ${unit}">
+          <div class="split-bar"><span class="sbk" style="width:${shareSbk.toFixed(2)}%"></span><span class="sdc" style="width:${(100 - shareSbk).toFixed(2)}%"></span></div>
+          <div class="split-labels"><span>SBK <b>${nf1.format(roundTo(shareSbk, 1))}%</b></span><span>สัดส่วนจากยอดรวม ${fmtInt(total)} ${unit}</span><span>SDC <b>${nf1.format(roundTo(100 - shareSbk, 1))}%</b></span></div>
+        </div>
+        <div class="kpi-metrics">
+          <div class="kpi-m" title="SDC ÷ SBK"><span>อัตราส่วน SDC÷SBK</span><strong data-fit="11">${fmtRatio(c.ratio)} <small class="c-muted" style="font-size:.72rem;font-weight:500">เท่า</small></strong></div>
+          <div class="kpi-m" title="SDC − SBK"><span>ผลต่าง SDC−SBK</span><strong class="${t.cls}" data-fit="11">${fmtSignedInt(c.diff)}</strong></div>
+          <div class="kpi-m" title="${escapeHtml(pctNote({ sbk, cmp: c }))}"><span>${pctLabel(c)}</span><strong class="${t.cls}" data-fit="11">${escapeHtml(fmtPct(c.pct))}</strong></div>
+        </div>
+      </div>`;
+  }
+
+  function kpiTransitTemplate(r, p, baseLabel) {
+    const item = (label, icon, v, pv) => `
+      <div class="kpi-tr">
+        <div class="kpi-tr-icon"><i class="fa-solid ${icon}"></i></div>
+        <div class="min-w-0" style="flex:1">
+          <div class="kpi-tag">${label}</div>
+          <div class="kpi-num" data-fit="14" style="font-size:1.7rem;margin-top:0">${fmtInt(v)}<small>คน</small></div>
+          ${wowChip(v, pv, baseLabel)}
+        </div>
+      </div>`;
+    return `
+      <div class="glass kpi kpi-transit">
+        <div class="kpi-top" aria-hidden="true"></div>
+        <div class="kpi-head">
+          <div class="card-icon sm ic-lime"><i class="fa-solid fa-route"></i></div>
+          <div class="kpi-title">ข้อมูลการเดินทางร่วม</div>
+        </div>
+        <div class="kpi-tr-list">
+          ${item('MRT', 'fa-train-subway', r.mrt, p ? p.mrt : null)}
+          ${item('EBM', 'fa-bus', r.ebm, p ? p.ebm : null)}
+        </div>
+      </div>`;
+  }
+
+  function renderKpis() {
+    const box = $('#kpiArea');
+    const r = viewRecord();
+    if (!r) {
+      if (state.historyLoading && !state.history.length) {
+        box.innerHTML = `<div class="kpi-grid">${[1, 2, 3].map(i => `<div class="glass kpi ${i === 3 ? 'kpi-transit' : ''}"><div class="skel" style="height:22px;width:55%"></div><div class="skel" style="height:86px;margin-top:16px"></div><div class="skel" style="height:44px;margin-top:14px"></div></div>`).join('')}</div>`;
+        return;
+      }
+      const latest = latestDate();
+      const d = parseISODate(state.viewDate);
+      box.innerHTML = `<div class="glass kpi-empty">
+          <i class="fa-regular ${latest ? 'fa-calendar-xmark' : 'fa-folder-open'} big"></i>
+          <h3>${latest ? `ไม่มีข้อมูลของ${d ? escapeHtml(fmtThaiLong(d)) : 'วันที่เลือก'}` : 'ยังไม่มีข้อมูลที่บันทึกไว้'}</h3>
+          <p>${latest ? 'เลือกวันที่มีจุดสีในปฏิทิน หรือกรอกข้อมูลของวันนี้' : 'เริ่มกรอกยอดวันแรก แล้วรายงานจะแสดงที่หน้านี้อัตโนมัติ'}</p>
+          <div class="flex flex-wrap gap-2 justify-center mt-4">
+            ${latest ? `<button type="button" class="btn btn-primary" data-action="view-latest"><i class="fa-solid fa-forward-fast btn-icon"></i><span>ไปวันล่าสุด (${escapeHtml(fmtThaiShort(parseISODate(latest)))})</span></button>` : ''}
+            <button type="button" class="btn btn-lime" data-action="entry-for-date"><i class="fa-solid fa-pen-to-square btn-icon"></i><span>${state.viewDate === todayISO() ? 'กรอกข้อมูลของวันนี้' : 'กรอกข้อมูลของวันที่นี้'}</span></button>
+          </div>
+        </div>`;
+      return;
+    }
+    const base = compareBase(r.date);
+    const p = base ? base.rec : null;
+    const label = base ? base.title : '';
+    box.innerHTML = `<div class="kpi-grid">
+        ${kpiPairTemplate({ title: 'ยอดคนเข้าศูนย์ฯ', icon: 'fa-people-group', unit: 'คน', sbk: r.sbkPeople, sdc: r.sdcPeople, psbk: p ? p.sbkPeople : null, psdc: p ? p.sdcPeople : null, baseLabel: label })}
+        ${kpiPairTemplate({ title: 'ยอดรถยนต์', icon: 'fa-car-side', unit: 'คัน', sbk: r.sbkCars, sdc: r.sdcCars, psbk: p ? p.sbkCars : null, psdc: p ? p.sdcCars : null, baseLabel: label })}
+        ${kpiTransitTemplate(r, p, label)}
+      </div>
+      <p class="kpi-note"><i class="fa-solid fa-circle-info"></i> ▲▼ ใต้ตัวเลข = การเปลี่ยนแปลง${base ? escapeHtml(base.title.replace(/^เทียบกับ/, 'เมื่อเทียบกับ')) : ' (ยังไม่มีข้อมูลก่อนหน้าให้เทียบ)'}</p>`;
+    fitText(box);
   }
 
   function renderCalendar() {
@@ -2045,6 +2302,12 @@
   }
 
   function emptyReportTemplate() {
+    if (state.tab === 'entry') {
+      const fd = parseISODate(state.data.date);
+      return `<i class="fa-regular fa-file-lines big"></i>
+        <h3>ใบรายงานของ${fd ? escapeHtml(fmtThaiLong(fd)) : 'วันที่เลือก'}</h3>
+        <p>ยังไม่มีตัวเลขในฟอร์ม กรอกยอดทางด้านซ้าย<br>ใบรายงานจะสร้างให้ทันทีที่เริ่มพิมพ์</p>`;
+    }
     const d = parseISODate(state.viewDate);
     const latest = latestDate();
     if (state.historyLoading && !state.history.length) {
@@ -2126,7 +2389,7 @@
       ? (sameNumbers(saved, state.data)
         ? '<span class="saved-badge"><i class="fa-solid fa-circle-check"></i>บันทึกแล้ว</span>'
         : '<span class="saved-badge" style="color:#D97706;border-color:rgba(245,158,11,.55);background:rgba(245,158,11,.1)"><i class="fa-solid fa-pen"></i>มีข้อมูลเดิม ยังไม่บันทึกการแก้ไข</span>')
-      : '';
+      : '<span class="saved-badge" style="color:var(--muted);border-color:var(--line-strong);background:var(--surface)"><i class="fa-regular fa-circle"></i>ยังไม่มีข้อมูล</span>';
     el.innerHTML = `<strong>${escapeHtml(fmtThaiLong(m.dateObj))}</strong>${badge}${savedBadge}`;
   }
 
@@ -2180,6 +2443,8 @@
   function fitText(root) {
     $$('[data-fit]', root).forEach(el => {
       el.style.fontSize = '';
+      // element ที่ซ่อนอยู่มีความกว้าง 0 → ถ้าวัดต่อจะย่อจนเล็กสุด แล้วแสดงผลตัวจิ๋วตอนเปิดกลับมา
+      if (!el.clientWidth) return;
       let size = parseFloat(getComputedStyle(el).fontSize);
       const min = Number(el.dataset.fit) || 10;
       let guard = 60;
@@ -2192,7 +2457,8 @@
 
   function renderReports(m = buildModel()) {
     const vp = $('#rptViewport');
-    const empty = state.tab === 'view' && !viewRecord();
+    // โหมดดู: วันที่ไม่มีข้อมูล / โหมดบันทึก: ฟอร์มยังว่าง → แสดงคำแนะนำแทนใบรายงานที่มีแต่ "—"
+    const empty = (state.tab === 'view' && !viewRecord()) || (state.tab === 'entry' && !hasNumbers());
     vp.classList.toggle('is-empty', empty);
     if (empty) {
       // ไม่มีข้อมูลของวันที่เลือก: แสดงคำแนะนำแทนใบรายงานที่เต็มไปด้วย "—"
@@ -2292,7 +2558,11 @@
     chip.title = !on ? 'ยังไม่เชื่อม Google Sheets (กดเพื่อตั้งค่า)'
       : pendingCount ? `มี ${pendingCount} รายการบันทึกในเครื่องแล้ว รอส่งขึ้น Google Sheets อัตโนมัติ`
       : 'เชื่อมต่อ Google Sheets แล้ว (กดเพื่อตั้งค่า)';
-    $('#saveLabel').textContent = on ? 'บันทึกลง Google Sheets' : 'บันทึกข้อมูล (ในเครื่อง)';
+    const hasSaved = !!findRecord(state.data.date);
+    $('#saveLabel').textContent = on
+      ? (hasSaved ? 'บันทึกการแก้ไขลง Google Sheets' : 'บันทึกลง Google Sheets')
+      : (hasSaved ? 'บันทึกการแก้ไข (ในเครื่อง)' : 'บันทึกข้อมูล (ในเครื่อง)');
+    $('#revertBtn').disabled = !isUnsaved();
   }
 
   /* ================================================================
@@ -2325,7 +2595,16 @@
   }
   function storageSet(key, value) {
     try { localStorage.setItem(key, JSON.stringify(value)); return true; }
-    catch (err) { console.warn('เขียน localStorage ไม่ได้:', err); return false; }
+    catch (err) {
+      console.warn('เขียน localStorage ไม่ได้:', err);
+      if (!state.storageWarned) {
+        state.storageWarned = true;
+        const full = err && (err.name === 'QuotaExceededError' || err.code === 22);
+        setTimeout(() => showToast('error', full ? 'พื้นที่เก็บข้อมูลในเบราว์เซอร์เต็ม' : 'เบราว์เซอร์ไม่อนุญาตให้เก็บข้อมูล',
+          'ข้อมูลสำรองในเครื่องอาจไม่ถูกบันทึก ให้ใช้การบันทึกลง Google Sheets เป็นหลัก'), 0);
+      }
+      return false;
+    }
   }
   function storageRemove(key) {
     try { localStorage.removeItem(key); } catch (_) { /* ไม่สำคัญ */ }
@@ -2413,6 +2692,28 @@
     return res;
   }
 
+  /** นาฬิกาเครื่องคลาดเคลื่อนจากเซิร์ฟเวอร์เกิน 10 นาที → วันที่อัตโนมัติ/ป้ายเวลาอาจผิด ให้เตือน 1 ครั้ง */
+  function checkClockSkew(serverTime) {
+    const t = Date.parse(serverTime || '');
+    if (!t || state.clockWarned) return;
+    const diffMin = Math.round((Date.now() - t) / 60000);
+    if (Math.abs(diffMin) >= 10) {
+      state.clockWarned = true;
+      showToast('error', 'นาฬิกาของเครื่องนี้ไม่ตรงกับเวลาจริง', `คลาดเคลื่อนประมาณ ${nfInt.format(Math.abs(diffMin))} นาที วันที่อัตโนมัติอาจผิด กรุณาตั้งเวลาเครื่องเป็นอัตโนมัติ`);
+    }
+  }
+
+  /** วันเดียวกันมีหลายแถว (เช่นมีคนคัดลอกแถวในชีต) → เก็บแถวที่บันทึกล่าสุดไว้แถวเดียว */
+  function dedupeRecords(list) {
+    const map = new Map();
+    list.forEach(r => {
+      const prev = map.get(r.date);
+      const t = Date.parse(r.savedAt || '') || 0;
+      if (!prev || t >= (Date.parse(prev.savedAt || '') || 0)) map.set(r.date, r);
+    });
+    return Array.from(map.values());
+  }
+
   /** รวมรายการที่รอส่ง (มีเฉพาะในเครื่อง) เข้ากับรายการจาก Sheets เพื่อให้ผู้ใช้เห็นข้อมูลล่าสุดครบ */
   function mergePending(list) {
     const pending = new Set(getPending());
@@ -2433,7 +2734,6 @@
       const d = parseISODate(state.viewDate);
       state.calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
     }
-    if (!state.tabChosen && !state.dirty) state.tab = latest ? 'view' : 'entry';
   }
 
   /** โหลดประวัติ: เชื่อม Sheets แล้วดึงจาก Sheets (ข้อมูลกลางของทุกเครื่อง) ถ้าล้มเหลวใช้ข้อมูลสำรองในเครื่อง */
@@ -2452,9 +2752,11 @@
     try {
       const res = await sheetApi('list');
       if (req !== state.historyReq) return; // มีคำขอใหม่กว่าแล้ว ทิ้งผลลัพธ์นี้
-      const list = (Array.isArray(res.records) ? res.records : []).map(sanitizeRecord).filter(r => r && r.date);
+      const list = dedupeRecords((Array.isArray(res.records) ? res.records : []).map(sanitizeRecord).filter(r => r && r.date));
+      checkClockSkew(res.serverTime);
       state.history = mergePending(list);
       state.historySource = 'sheets';
+      if (res.duplicates) showToast('info', `พบแถวซ้ำในชีต ${res.duplicates} แถว`, 'แอปใช้แถวที่บันทึกล่าสุดของแต่ละวัน (แนะนำลบแถวซ้ำในชีต)');
       if (!silent) showToast('success', 'โหลดประวัติจาก Google Sheets แล้ว', `ทั้งหมด ${nfInt.format(list.length)} รายการ`);
     } catch (err) {
       if (req !== state.historyReq) return;
@@ -2467,6 +2769,11 @@
         state.historyLoading = false;
         setBusy('refresh', false);
         applyAutoView();
+        // ผู้ใช้ยังไม่ได้พิมพ์อะไร → ให้ฟอร์มตรงกับข้อมูลล่าสุดในชีต (เช่นเครื่องอื่นบันทึกของวันนี้ไว้แล้ว)
+        if (!state.dirty) {
+          const rec = findRecord(state.data.date);
+          if (rec ? !sameNumbers(rec, state.data) : hasNumbers()) { bindFormToDate(state.data.date); return; }
+        }
         renderAll();
       }
     }
@@ -2533,6 +2840,8 @@
   }
 
   function confirmDialog({ title, message, okText = 'ยืนยัน', tone = 'danger' }) {
+    // เปิดซ้อนไม่ได้: ถ้ามีหน้าต่างยืนยันค้างอยู่ ถือว่า "ยกเลิก" คำขอใหม่ (กัน Promise แรกค้างไม่จบ)
+    if ($('#confirmModal').classList.contains('open')) return Promise.resolve(false);
     return new Promise(resolve => {
       const modal = $('#confirmModal');
       const ok = $('#confirmOk');
@@ -2556,7 +2865,14 @@
       const onOk = () => done(true);
       const onCancel = () => done(false);
       const onBackdrop = e => { if (e.target === modal) done(false); };
-      const onKey = e => { if (e.key === 'Escape') done(false); };
+      const onKey = e => {
+        if (e.key === 'Escape') { done(false); return; }
+        // วนโฟกัสอยู่ในหน้าต่าง ไม่ให้กด Tab ไปโดนปุ่มด้านหลัง
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          (document.activeElement === ok ? cancel : ok).focus();
+        }
+      };
       ok.addEventListener('click', onOk);
       cancel.addEventListener('click', onCancel);
       modal.addEventListener('click', onBackdrop);
@@ -2632,7 +2948,20 @@
       showToast('error', 'ไม่มีข้อมูลของวันที่เลือก', 'เลือกวันที่มีจุดสีในปฏิทิน หรือกดปุ่ม "ล่าสุด"');
       return false;
     }
-    return ensureComplete() && (await confirmWarnings(actionText));
+    if (!ensureComplete() || !(await confirmWarnings(actionText))) return false;
+    // ยังไม่บันทึก → ใบรายงานจะมีตรา "ฉบับร่าง" ให้ผู้ใช้เลือกว่าจะบันทึกก่อนหรือส่งออกเลย
+    const sig = JSON.stringify(state.data);
+    if (isUnsaved() && state.draftAckSig !== sig) {
+      const ok = await confirmDialog({
+        title: 'ข้อมูลนี้ยังไม่ได้บันทึก',
+        message: 'ใบรายงานจะมีตรา "ฉบับร่าง" กำกับ\nแนะนำให้กด "บันทึก" ก่อน เพื่อให้ข้อมูลตรงกับ Google Sheets\n\nต้องการ' + actionText + 'เป็นฉบับร่างหรือไม่',
+        okText: actionText + 'ฉบับร่าง',
+        tone: 'primary'
+      });
+      if (!ok) return false;
+      state.draftAckSig = sig;
+    }
+    return true;
   }
 
   function reportFileName(ext) {
@@ -2819,8 +3148,77 @@
   }
 
   /** ฟอร์มมีข้อมูลที่ยังไม่บันทึก → ถามก่อนแทนที่ (กันงานที่กรอกไว้หาย) */
+  /**
+   * ฟอร์มมีตัวเลขที่ "ยังไม่ได้บันทึก" จริงหรือไม่
+   * = มีตัวเลขในฟอร์ม และไม่ตรงกับข้อมูลที่บันทึกไว้ของวันที่เดียวกัน
+   * (ใช้แทน flag dirty อย่างเดียว เพราะผู้ใช้อาจแก้แล้วแก้กลับเป็นค่าเดิม ซึ่งไม่ถือว่ายังไม่บันทึก)
+   */
+  function isUnsaved(d = state.data) {
+    if (!hasNumbers(d)) return false;
+    const saved = findRecord(d.date);
+    return !(saved && sameNumbers(saved, d));
+  }
+
+  /**
+   * หัวใจของ v6: ฟอร์มเป็นของ "วันที่" เสมอ
+   * เปลี่ยนวันที่เมื่อไร → โหลดข้อมูลที่บันทึกของวันนั้น / ถ้ายังไม่มี → ฟอร์มว่างพร้อมกรอก
+   * (กันตัวเลขของวันก่อนติดมาเป็นของวันใหม่แล้วถูกบันทึกผิดวัน)
+   */
+  function bindFormToDate(date, { announce = false } = {}) {
+    const rec = findRecord(date);
+    state.data = emptyRecord(date);
+    if (rec) NUMERIC_FIELDS.forEach(k => { state.data[k] = rec[k]; });
+    state.dirty = false;
+    state.ackSig = '';
+    state.draftAckSig = '';
+    state.touched.clear();
+    fillForm();
+    scheduleDraftSave();
+    renderAll();
+    if (announce) {
+      const d = parseISODate(date);
+      if (rec) showToast('info', 'เปิดข้อมูลที่บันทึกไว้ของวันที่นี้', `${fmtThaiLong(d)} (แก้ไขแล้วกดบันทึกเพื่ออัปเดต)`);
+      else showToast('info', 'ยังไม่มีข้อมูลของวันที่นี้ ฟอร์มว่างพร้อมกรอก', fmtThaiLong(d));
+    }
+    return rec;
+  }
+
+  /** เปลี่ยนวันที่ของฟอร์มอย่างปลอดภัย: ถามก่อนถ้ามีตัวเลขที่ยังไม่บันทึก */
+  async function changeFormDate(date, what) {
+    if (date === state.data.date) return true;
+    if (!(await confirmDiscard(what))) return false;
+    bindFormToDate(date, { announce: true });
+    return true;
+  }
+
+  async function handleDateModeClick(mode) {
+    if (mode === state.dateMode) return;
+    if (mode === 'auto') {
+      const today = todayISO();
+      if (state.data.date !== today && !(await confirmDiscard('เปลี่ยนเป็นวันที่วันนี้'))) return;
+      setDateMode('auto', { silent: true });
+      bindFormToDate(today, { announce: true });
+      return;
+    }
+    setDateMode('manual');
+  }
+
+  /** ยกเลิกการแก้ไข: กลับไปเป็นข้อมูลที่บันทึกไว้ (หรือฟอร์มว่างถ้ายังไม่เคยบันทึก) */
+  async function handleRevert() {
+    if (!isUnsaved()) { showToast('info', 'ไม่มีการแก้ไขที่ยังไม่บันทึก', 'ตัวเลขในฟอร์มตรงกับข้อมูลที่บันทึกแล้ว'); return; }
+    const saved = findRecord(state.data.date);
+    const ok = await confirmDialog({
+      title: 'ยกเลิกการแก้ไขหรือไม่',
+      message: saved ? 'ตัวเลขในฟอร์มจะกลับเป็นข้อมูลที่บันทึกไว้ของวันที่นี้' : 'วันที่นี้ยังไม่เคยบันทึก ตัวเลขที่กรอกไว้จะถูกล้าง',
+      okText: 'ยกเลิกการแก้ไข'
+    });
+    if (!ok) return;
+    bindFormToDate(state.data.date);
+    showToast('success', saved ? 'คืนค่าเป็นข้อมูลที่บันทึกไว้แล้ว' : 'ล้างตัวเลขที่ยังไม่บันทึกแล้ว', fmtThaiLong(parseISODate(state.data.date)));
+  }
+
   async function confirmDiscard(what) {
-    if (!state.dirty || !hasNumbers()) return true;
+    if (!isUnsaved()) return true;
     return confirmDialog({
       title: 'ข้อมูลในฟอร์มยังไม่ได้บันทึก',
       message: `ถ้า${what} ตัวเลขที่กรอกไว้จะถูกแทนที่\nต้องการดำเนินการต่อหรือไม่`,
@@ -2877,18 +3275,6 @@
     }
   }
 
-  async function handleSample() {
-    if (!(await confirmDiscard('ใช้ข้อมูลตัวอย่าง'))) return;
-    setDateMode('manual', { silent: true }); // ข้อมูลตัวอย่างเป็นวันที่ 22/09/2569 จึงต้องเป็นโหมดเลือกเอง
-    state.data = getSampleData();
-    state.dirty = false;
-    state.touched.clear();
-    fillForm();
-    scheduleDraftSave();
-    renderAll();
-    showToast('info', 'ใส่ข้อมูลตัวอย่างแล้ว', 'วันอังคารที่ 22 กันยายน 2569 (ข้อมูลสาธิต ไม่ต้องบันทึก)');
-  }
-
   async function handleClear() {
     const ok = await confirmDialog({
       title: 'ล้างข้อมูลในฟอร์มหรือไม่',
@@ -2916,19 +3302,14 @@
     return new Date(base.getFullYear(), base.getMonth(), base.getDate() + (tgt - cur));
   }
 
-  function handleWeekday(targetDow) {
+  async function handleWeekday(targetDow) {
     if (state.dateMode === 'auto') return;
     const next = weekdayTarget(targetDow);
     if (dayKey(next) > dayKey(new Date())) {
       showToast('error', 'เลือกวันในอนาคตไม่ได้', 'รายงานได้เฉพาะวันนี้หรือวันที่ผ่านมาแล้ว');
       return;
     }
-    state.data.date = toISODate(next);
-    $('#reportDate').value = state.data.date;
-    if (hasNumbers()) state.dirty = true; // ตัวเลขเดิมถูกย้ายไปวันใหม่ = ยังไม่ได้บันทึก
-    state.touched.add('date');
-    scheduleDraftSave();
-    renderAll();
+    await changeFormDate(toISODate(next), 'เปลี่ยนวันที่');
   }
 
   /* ================================================================
@@ -3102,28 +3483,27 @@
     scheduleRender();
   }
 
-    function onDateChange(e) {
+    async function onDateChange(e) {
     const el = e.target;
+    const prev = state.data.date;
     const d = parseISODate(el.value);
-    if (d && dayKey(d) > dayKey(new Date())) {
-      // พิมพ์วันอนาคตเองได้แม้มี max จึงต้องตรวจซ้ำและดึงกลับเป็นวันนี้
-      el.value = todayISO();
-      state.data.date = el.value;
-      if (e.type === 'change') showToast('error', 'เลือกวันในอนาคตไม่ได้', 'ปรับเป็นวันที่วันนี้ให้แล้ว');
-      state.touched.add('date');
-      scheduleDraftSave();
-      scheduleRender();
+    if (!d) {
+      // ช่องว่าง/ยังพิมพ์ไม่ครบ: ไม่เปลี่ยนข้อมูลในฟอร์ม คืนวันที่เดิมให้
+      if (!el.value) { el.value = prev; showToast('error', 'ต้องระบุวันที่รายงาน', 'คืนค่าเป็นวันที่เดิมให้แล้ว'); }
       return;
     }
-    if (d && toISODate(d) !== el.value) el.value = toISODate(d); // พิมพ์ปี พ.ศ. มา → แปลงเป็น ค.ศ.
-    state.data.date = d ? toISODate(d) : '';
-    if (hasNumbers()) state.dirty = true;
-    state.touched.add('date');
-    scheduleDraftSave();
-    scheduleRender();
+    let iso = toISODate(d); // พิมพ์ปี พ.ศ. มา → แปลงเป็น ค.ศ.
+    if (dayKey(d) > dayKey(new Date())) {
+      iso = todayISO();
+      showToast('error', 'เลือกวันในอนาคตไม่ได้', 'ปรับเป็นวันที่วันนี้ให้แล้ว');
+    }
+    el.value = iso;
+    if (iso === prev) return;
+    const ok = await changeFormDate(iso, 'เปลี่ยนวันที่');
+    if (!ok) el.value = prev; // ผู้ใช้ยกเลิก → คืนวันที่เดิมในช่อง
   }
 
-  function handleEvents() {
+    function handleEvents() {
     NUMERIC_FIELDS.forEach(k => {
       const el = $('#' + k);
       el.addEventListener('input', onNumericInput);
@@ -3135,8 +3515,8 @@
         if (next) $('#' + next).focus(); else el.blur();
       });
     });
+    // ฟังเฉพาะ change (เลือกวันเสร็จแล้ว) ไม่ใช้ input เพื่อไม่ให้ถามยืนยันซ้ำระหว่างพิมพ์วันที่
     $('#reportDate').addEventListener('change', onDateChange);
-    $('#reportDate').addEventListener('input', onDateChange);
     $('#sheetUrl').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); handleSettingsSave(); } });
 
     $('#dowGroup').addEventListener('keydown', e => {
@@ -3158,7 +3538,7 @@
         case 'png': handleExportPNG(); break;
         case 'print': handlePrint(); break;
         case 'save': handleSave(); break;
-        case 'sample': handleSample(); break;
+        case 'revert': handleRevert(); break;
         case 'clear': handleClear(); break;
         case 'load': handleLoad(btn.dataset.date); break;
         case 'delete': handleDelete(btn.dataset.date, btn); break;
@@ -3169,7 +3549,7 @@
         case 'settings-close': closeSettings(); break;
         case 'settings-save': handleSettingsSave(); break;
         case 'settings-reset': handleSettingsReset(); break;
-        case 'date-mode': setDateMode(btn.dataset.mode); break;
+        case 'date-mode': handleDateModeClick(btn.dataset.mode); break;
         case 'tab': setTab(btn.dataset.tab, { user: true }); break;
         case 'view-date': selectViewDate(btn.dataset.date); break;
         case 'view-step': stepView(Number(btn.dataset.dir)); break;
@@ -3210,31 +3590,30 @@
   function startClock() {
     const tick = () => {
       const now = new Date();
+      const k = dayKey(now);
+      const dayChanged = state.lastDayKey && k !== state.lastDayKey;
+      state.lastDayKey = k;
       $('#clock').textContent = `${fmtThaiShort(now)} ${fmtTime(now)} น.`;
       // โหมดอัตโนมัติ: เปิดแอปค้างข้ามเที่ยงคืน วันที่รายงานจะเลื่อนเป็นวันใหม่เอง
       if (state.dateMode === 'auto' && state.data.date !== todayISO()) {
         const oldDate = parseISODate(state.data.date);
-        if (state.dirty && hasNumbers()) {
+        if (isUnsaved()) {
           // ข้ามเที่ยงคืนระหว่างกรอกยอด: ห้ามย้ายตัวเลขไปวันใหม่ → คงวันที่เดิมและสลับเป็นโหมดเลือกเอง
           setDateMode('manual', { silent: true });
           showToast('info', 'ข้ามเที่ยงคืนแล้ว คงวันที่เดิมไว้', `${oldDate ? fmtThaiLong(oldDate) : ''} เพราะยังไม่ได้บันทึก (เปลี่ยนเป็นโหมดเลือกเอง)`);
         } else {
-          // ขึ้นวันใหม่: ล้างตัวเลขของเมื่อวาน กันเผลอบันทึกยอดเก่าเป็นของวันใหม่
-          state.data = { date: todayISO() };
-          NUMERIC_FIELDS.forEach(k => { state.data[k] = null; });
-          state.dirty = false;
-          state.touched.clear();
-          fillForm();
-          scheduleDraftSave();
-          renderAll();
-          showToast('info', 'ขึ้นวันใหม่ ฟอร์มพร้อมกรอกยอดแล้ว', fmtThaiLong(new Date()));
+          // ขึ้นวันใหม่: ฟอร์มผูกกับวันใหม่ (ว่าง หรือข้อมูลที่เครื่องอื่นบันทึกไว้แล้ว)
+          const rec = bindFormToDate(todayISO());
+          showToast('info', rec ? 'ขึ้นวันใหม่ มีข้อมูลของวันนี้บันทึกไว้แล้ว' : 'ขึ้นวันใหม่ ฟอร์มว่างพร้อมกรอกยอด', fmtThaiLong(new Date()));
         }
       } else {
         $('#reportDate').max = todayISO();
+        if (dayChanged) renderAll(); // วันเปลี่ยน: ปฏิทินต้องปลดล็อกวันใหม่ / ป้าย "วันนี้" ต้องย้าย
       }
     };
     tick();
     setInterval(tick, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); }); // กลับมาเปิดแอปหลังพักเครื่อง
   }
 
   /* ================================================================
@@ -3250,36 +3629,34 @@
     state.sheetUrl = typeof savedUrl === 'string' && SHEET_URL_RE.test(savedUrl) ? savedUrl : DEFAULT_SHEET_URL;
     state.dateMode = storageGet(STORAGE_KEYS.dateMode, 'auto') === 'manual' ? 'manual' : 'auto';
 
-    // เปิดครั้งแรกใช้ข้อมูลตัวอย่าง / ครั้งถัดไปใช้ร่างล่าสุดที่ค้างไว้
+    // ฟอร์มตอนเปิดแอป: ร่างที่ยังไม่บันทึกได้รับการเก็บรักษา / ที่เหลือผูกกับวันที่ (ข้อมูลที่บันทึก หรือว่าง)
+    state.history = loadLocalHistory();
     const rawDraft = storageGet(STORAGE_KEYS.draft, null);
     const draft = sanitizeRecord(rawDraft);
-    const draftDirty = !!(rawDraft && rawDraft.dirty);
-    const emptyToday = () => { const o = { date: todayISO() }; NUMERIC_FIELDS.forEach(k => { o[k] = null; }); return o; };
-    if (!draft || (!draft.date && !hasNumbers(draft))) {
-      state.data = getSampleData();
-      state.dateMode = 'manual'; // เปิดครั้งแรกแสดงข้อมูลตัวอย่างวันที่ 22/09/2569 ตามโจทย์
-    } else if (state.dateMode === 'auto' && draft.date !== todayISO()) {
-      if (draftDirty && hasNumbers(draft) && draft.date) {
-        // มียอดของวันก่อนที่ยังไม่ได้บันทึก → เปิดวันนั้นให้ (ไม่ย้ายตัวเลขมาเป็นของวันนี้)
-        state.data = { date: draft.date };
-        NUMERIC_FIELDS.forEach(k => { state.data[k] = draft[k]; });
-        state.dateMode = 'manual';
-        state.dirty = true;
-        showToast('info', 'พบข้อมูลที่ยังไม่ได้บันทึก', `${fmtThaiLong(parseISODate(draft.date))} (เปลี่ยนเป็นโหมดเลือกเองให้แล้ว)`);
-      } else {
-        state.data = emptyToday(); // วันใหม่ เริ่มฟอร์มว่าง
-      }
-    } else {
+    const draftUnsaved = !!(draft && draft.date && isUnsaved(draft));
+    let startDate = state.dateMode === 'auto' ? todayISO() : ((draft && draft.date) || todayISO());
+    if (!parseISODate(startDate) || dayKey(parseISODate(startDate)) > dayKey(new Date())) startDate = todayISO();
+    if (draftUnsaved && draft.date === startDate) {
+      state.data = { date: draft.date };                    // ทำต่อจากที่ค้างไว้ (วันเดียวกัน)
+      NUMERIC_FIELDS.forEach(k => { state.data[k] = draft[k]; });
+      state.dirty = true;
+    } else if (draftUnsaved && state.dateMode === 'auto') {
+      // มียอดของวันก่อนที่ยังไม่ได้บันทึก → เปิดวันนั้นให้ (ไม่ย้ายตัวเลขมาเป็นของวันนี้)
       state.data = { date: draft.date };
       NUMERIC_FIELDS.forEach(k => { state.data[k] = draft[k]; });
-      state.dirty = draftDirty;
+      state.dateMode = 'manual';
+      state.dirty = true;
+      showToast('info', 'พบข้อมูลที่ยังไม่ได้บันทึก', `${fmtThaiLong(parseISODate(draft.date))} (เปลี่ยนเป็นโหมดเลือกเองให้แล้ว)`);
+    } else {
+      const rec = findRecord(startDate);
+      state.data = emptyRecord(startDate);
+      if (rec) NUMERIC_FIELDS.forEach(k => { state.data[k] = rec[k]; });
+      state.dirty = false;
     }
-    if (state.dateMode === 'auto') state.data.date = todayISO();
-    else if (!parseISODate(state.data.date) || dayKey(parseISODate(state.data.date)) > dayKey(new Date())) state.data.date = todayISO();
-    state.history = loadLocalHistory();
+
     // หน้าแรก: มีข้อมูล → "ดูรายงาน" วันล่าสุดที่มีข้อมูล / ยังไม่มี → "บันทึกข้อมูล"
     // (ถ้ามีงานค้างที่ยังไม่บันทึก เปิดหน้าบันทึกข้อมูลให้ทำต่อ)
-    if (state.dirty && hasNumbers()) { state.tab = 'entry'; state.tabChosen = true; }
+    state.tab = 'view'; // หน้าแรกคือ "ดูรายงาน" เสมอ (มีงานค้างจะแสดงแถบเตือนให้ไปบันทึกต่อ)
     if (state.sheetUrl) state.historyLoading = true; // กำลังจะโหลดจากชีต → แสดงสถานะโหลดแทน "ไม่มีข้อมูล"
     applyAutoView();
 
